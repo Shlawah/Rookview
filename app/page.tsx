@@ -27,7 +27,7 @@ export default function Home() {
       {/* Nav */}
       <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1.5rem 3rem", position: "relative", zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <Image src="/PFP2.png" alt="Rookview" width={36} height={36} style={{ objectFit: "contain" }} />
+          <Image src="/LOGO.png" alt="Rookview" width={36} height={36} style={{ objectFit: "contain" }} />
           <span style={{ fontFamily: "'Syne', sans-serif", fontSize: "18px", fontWeight: 700, letterSpacing: "0.06em" }}>ROOKVIEW</span>
         </div>
         <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
