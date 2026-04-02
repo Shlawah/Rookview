@@ -20,7 +20,7 @@ export default function Home() {
           <a href="#features" style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>Automations</a>
           <a href="#features" style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>Stocks</a>
           <a href="#pricing" style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>Pricing</a>
-          <a href="YOUR_STRIPE_LINK_HERE">
+          <a href="https://buy.stripe.com/14A6oH6F08yb7bD6tye7m01">
             <button style={{ background: "#fff", color: "#000", border: "none", padding: "10px 20px", fontFamily: "'Syne', sans-serif", fontSize: "12px", fontWeight: 700, cursor: "pointer", borderRadius: "2px" }}>JOIN NOW</button>
           </a>
         </div>
@@ -35,8 +35,8 @@ export default function Home() {
           Premium automation breakdowns, stock research, and AI tools — built for creators and investors who move fast.
         </p>
         <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="YOUR_STRIPE_LINK_HERE">
-            <button style={{ background: "#fff", color: "#000", border: "none", padding: "14px 32px", fontFamily: "'Syne', sans-serif", fontSize: "13px", fontWeight: 700, cursor: "pointer", borderRadius: "2px" }}>START FOR $15/MO</button>
+          <a href="https://buy.stripe.com/14A6oH6F08yb7bD6tye7m01">
+            <button style={{ background: "#fff", color: "#000", border: "none", padding: "14px 32px", fontFamily: "'Syne', sans-serif", fontSize: "13px", fontWeight: 700, cursor: "pointer", borderRadius: "2px" }}>START FOR $64.99/MO</button>
           </a>
           <a href="#features">
             <button style={{ background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.2)", padding: "14px 32px", fontFamily: "'Syne', sans-serif", fontSize: "13px", cursor: "pointer", borderRadius: "2px" }}>SEE WHAT&apos;S INSIDE</button>
@@ -67,7 +67,7 @@ export default function Home() {
         <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(24px, 3vw, 36px)", fontWeight: 800, color: "#fff", marginBottom: "2rem" }}>One membership. Full access.</h2>
         <div style={{ maxWidth: "420px", margin: "0 auto", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "4px", padding: "2.5rem", background: "rgba(255,255,255,0.02)" }}>
           <p style={{ fontSize: "11px", letterSpacing: "0.16em", color: "rgba(255,255,255,0.3)", textTransform: "uppercase", marginBottom: "1rem" }}>Rookview Membership</p>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "64px", fontWeight: 800, lineHeight: 1 }}>$15</div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "64px", fontWeight: 800, lineHeight: 1 }}>$64.99</div>
           <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.3)", marginTop: "0.25rem", marginBottom: "2rem" }}>per month · cancel anytime</p>
           <ul style={{ listStyle: "none", marginBottom: "2rem", textAlign: "left", padding: 0 }}>
             {["Full automation library", "Weekly stock research drops", "Members-only AI tools", "Private Discord community", "Early access to new features"].map((item) => (
@@ -76,7 +76,7 @@ export default function Home() {
               </li>
             ))}
           </ul>
-          <a href="YOUR_STRIPE_LINK_HERE" style={{ display: "block" }}>
+          <a href="https://buy.stripe.com/14A6oH6F08yb7bD6tye7m01" style={{ display: "block" }}>
             <button style={{ width: "100%", padding: "16px", background: "#fff", color: "#000", border: "none", fontFamily: "'Syne', sans-serif", fontSize: "13px", fontWeight: 700, cursor: "pointer", borderRadius: "2px" }}>GET STARTED TODAY</button>
           </a>
         </div>
