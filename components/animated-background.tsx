@@ -126,7 +126,7 @@ export function AnimatedBackground() {
   }, [])
 
   const createExplosion = useCallback((entity: Entity) => {
-    const colors = ["#60a5fa", "#34d399", "#f472b6", "#a78bfa", "#fbbf24", "#f87171"]
+    const colors = ["#f8fafc", "#e2e8f0", "#cbd5e1", "#94a3b8"]
     const particleCount = 15 + Math.floor(Math.random() * 10)
     const targets = buttonTargetsRef.current
     
@@ -160,17 +160,12 @@ export function AnimatedBackground() {
     ctx.globalAlpha = entity.opacity
     
     const s = entity.size
-    const colors = [
-      ["#60a5fa", "#3b82f6"], // Blue
-      ["#34d399", "#10b981"], // Green
-      ["#f472b6", "#ec4899"], // Pink
-      ["#fbbf24", "#f59e0b"], // Yellow
-    ]
-    const [fill, stroke] = colors[entity.variant % colors.length]
+    const fill = "#e2e8f0"
+    const stroke = "#94a3b8"
     
-    // Body
+    // Body - more natural fish proportions (wider body)
     ctx.beginPath()
-    ctx.ellipse(0, 0, s * 0.5, s * 0.25, 0, 0, Math.PI * 2)
+    ctx.ellipse(0, 0, s * 0.45, s * 0.35, 0, 0, Math.PI * 2)
     ctx.fillStyle = fill
     ctx.fill()
     ctx.strokeStyle = stroke
@@ -179,24 +174,33 @@ export function AnimatedBackground() {
     
     // Tail
     ctx.beginPath()
-    ctx.moveTo(-s * 0.4, 0)
-    ctx.lineTo(-s * 0.7, -s * 0.2)
-    ctx.lineTo(-s * 0.7, s * 0.2)
+    ctx.moveTo(-s * 0.35, 0)
+    ctx.lineTo(-s * 0.65, -s * 0.25)
+    ctx.lineTo(-s * 0.65, s * 0.25)
     ctx.closePath()
     ctx.fillStyle = stroke
     ctx.fill()
     
     // Eye
     ctx.beginPath()
-    ctx.arc(s * 0.2, -s * 0.05, s * 0.06, 0, Math.PI * 2)
-    ctx.fillStyle = "#1e293b"
+    ctx.arc(s * 0.15, -s * 0.08, s * 0.07, 0, Math.PI * 2)
+    ctx.fillStyle = "#334155"
     ctx.fill()
     
-    // Fin
+    // Dorsal fin
     ctx.beginPath()
-    ctx.moveTo(0, -s * 0.15)
-    ctx.lineTo(s * 0.1, -s * 0.35)
-    ctx.lineTo(-s * 0.1, -s * 0.15)
+    ctx.moveTo(-s * 0.05, -s * 0.3)
+    ctx.quadraticCurveTo(s * 0.05, -s * 0.5, s * 0.15, -s * 0.3)
+    ctx.lineTo(-s * 0.05, -s * 0.3)
+    ctx.closePath()
+    ctx.fillStyle = stroke
+    ctx.fill()
+    
+    // Pectoral fin
+    ctx.beginPath()
+    ctx.moveTo(s * 0.05, s * 0.15)
+    ctx.quadraticCurveTo(s * 0.2, s * 0.35, s * 0.0, s * 0.3)
+    ctx.lineTo(s * 0.05, s * 0.15)
     ctx.closePath()
     ctx.fillStyle = stroke
     ctx.fill()
