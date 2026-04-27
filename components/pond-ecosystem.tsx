@@ -24,6 +24,18 @@ interface Fish {
   schoolId?: number
   targetX?: number
   targetY?: number
+  // Dissolve into matrix effect
+  dissolving?: boolean
+  dissolveProgress?: number
+  dissolveChars?: { char: string; x: number; y: number; vy: number; opacity: number }[]
+}
+
+interface MatrixDrop {
+  x: number
+  y: number
+  chars: { char: string; opacity: number }[]
+  speed: number
+  life: number
 }
 
 interface NumberSplash {
@@ -63,6 +75,7 @@ export function PondEcosystem() {
   const fishRef = useRef<Fish[]>([])
   const splashesRef = useRef<NumberSplash[]>([])
   const ripplesRef = useRef<Ripple[]>([])
+  const matrixDropsRef = useRef<MatrixDrop[]>([])
   const timeRef = useRef(0)
   const buttonPosRef = useRef({ x: 0, y: 0 })
   const dimensionsRef = useRef({ width: 0, height: 0 })
@@ -151,31 +164,34 @@ export function PondEcosystem() {
         })
       }
       
-      // Schools of small fish - 3 schools with 8-12 fish each
+      // Schools of small fish - 3 schools with 10-15 fish each, slower and more wavy
       for (let school = 0; school < 3; school++) {
         const schoolCenterX = 200 + Math.random() * (w - 400)
         const schoolCenterY = 150 + Math.random() * (h - 300)
         const schoolDirection = Math.random() > 0.5 ? 1 : -1
-        const schoolSpeed = 2 + Math.random() * 1.5
-        const fishCount = 8 + Math.floor(Math.random() * 5)
+        const schoolSpeed = 0.8 + Math.random() * 0.5 // Half speed
+        const fishCount = 10 + Math.floor(Math.random() * 6)
         
         for (let i = 0; i < fishCount; i++) {
           fishRef.current.push({
-            x: schoolCenterX + (Math.random() - 0.5) * 80,
-            y: schoolCenterY + (Math.random() - 0.5) * 60,
-            vx: schoolDirection * schoolSpeed + (Math.random() - 0.5) * 0.5,
-            vy: (Math.random() - 0.5) * 0.8,
-            size: 18 + Math.random() * 12,
+            x: schoolCenterX + (Math.random() - 0.5) * 100,
+            y: schoolCenterY + (Math.random() - 0.5) * 80,
+            vx: schoolDirection * schoolSpeed + (Math.random() - 0.5) * 0.3,
+            vy: (Math.random() - 0.5) * 0.4,
+            size: 16 + Math.random() * 10,
             phase: Math.random() * Math.PI * 2,
-            transformTimer: 750 + Math.random() * 180,
-            opacity: 0.25 + Math.random() * 0.1,
+            transformTimer: 600 + Math.random() * 400, // Will trigger dissolve
+            opacity: 0.28 + Math.random() * 0.1,
             isCodeFish: false,
             codeChars: [],
             alive: true,
             fishType: "small",
             schoolId: school,
             targetX: schoolCenterX,
-            targetY: schoolCenterY
+            targetY: schoolCenterY,
+            dissolving: false,
+            dissolveProgress: 0,
+            dissolveChars: []
           })
         }
       }
@@ -497,39 +513,53 @@ export function PondEcosystem() {
 
         ctx.restore()
       } else {
-        // Small regular fish
+        // Small regular fish - more wavy and lifelike
         ctx.save()
         ctx.translate(fish.x, fish.y)
         ctx.scale(fish.vx > 0 ? 1 : -1, 1)
 
-        const wave = Math.sin(fish.phase + time * 0.008) * 0.15
-        ctx.rotate(wave)
+        // More pronounced body wave
+        const bodyWave = Math.sin(fish.phase * 2 + time * 0.015) * 0.2
+        const verticalBob = Math.sin(fish.phase + time * 0.008) * fish.size * 0.08
+        ctx.translate(0, verticalBob)
+        ctx.rotate(bodyWave)
 
         ctx.globalAlpha = fish.opacity
         ctx.fillStyle = "#ffffff"
 
-        // Body
+        // Slightly curved body using bezier
         ctx.beginPath()
-        ctx.ellipse(0, 0, fish.size, fish.size * 0.4, 0, 0, Math.PI * 2)
+        const bodyStretch = 1 + Math.sin(fish.phase + time * 0.01) * 0.05
+        ctx.ellipse(0, 0, fish.size * bodyStretch, fish.size * 0.38, 0, 0, Math.PI * 2)
         ctx.fill()
 
-        // Tail
-        const tailWave = Math.sin(fish.phase + time * 0.012) * 0.3
+        // Animated tail with more wave
+        const tailWave = Math.sin(fish.phase * 2.5 + time * 0.02) * 0.5
         ctx.save()
-        ctx.translate(-fish.size, 0)
+        ctx.translate(-fish.size * bodyStretch, 0)
         ctx.rotate(tailWave)
         ctx.beginPath()
         ctx.moveTo(0, 0)
-        ctx.lineTo(-fish.size * 0.6, -fish.size * 0.35)
-        ctx.lineTo(-fish.size * 0.6, fish.size * 0.35)
+        ctx.quadraticCurveTo(-fish.size * 0.3, -fish.size * 0.2, -fish.size * 0.55, -fish.size * 0.4)
+        ctx.lineTo(-fish.size * 0.45, 0)
+        ctx.lineTo(-fish.size * 0.55, fish.size * 0.4)
+        ctx.quadraticCurveTo(-fish.size * 0.3, fish.size * 0.2, 0, 0)
         ctx.closePath()
         ctx.fill()
         ctx.restore()
 
+        // Small dorsal fin
+        ctx.globalAlpha = fish.opacity * 0.8
+        ctx.beginPath()
+        ctx.moveTo(fish.size * 0.1, -fish.size * 0.35)
+        ctx.quadraticCurveTo(0, -fish.size * 0.5, -fish.size * 0.15, -fish.size * 0.35)
+        ctx.closePath()
+        ctx.fill()
+
         // Eye
         ctx.globalAlpha = fish.opacity * 1.5
         ctx.beginPath()
-        ctx.arc(fish.size * 0.5, -fish.size * 0.1, fish.size * 0.12, 0, Math.PI * 2)
+        ctx.arc(fish.size * 0.5, -fish.size * 0.08, fish.size * 0.1, 0, Math.PI * 2)
         ctx.fill()
 
         ctx.restore()
@@ -672,8 +702,80 @@ export function PondEcosystem() {
             }
           }
         } else if (fish.fishType === "small") {
-          // Schooling fish behavior
-          const schoolmates = fishRef.current.filter(f => f.fishType === "small" && f.schoolId === fish.schoolId && f !== fish)
+          // Check if fish is dissolving into matrix code
+          if (fish.dissolving) {
+            fish.dissolveProgress = (fish.dissolveProgress || 0) + 0.015
+            
+            // Update dissolve characters falling down like matrix rain
+            if (fish.dissolveChars) {
+              fish.dissolveChars.forEach(dc => {
+                dc.y += dc.vy
+                dc.vy += 0.08 // gravity
+                dc.opacity -= 0.012
+              })
+              fish.dissolveChars = fish.dissolveChars.filter(dc => dc.opacity > 0)
+            }
+            
+            // Draw dissolving fish - parts turn into falling code
+            if (fish.dissolveProgress < 1) {
+              ctx.save()
+              ctx.translate(fish.x, fish.y)
+              ctx.scale(fish.vx > 0 ? 1 : -1, 1)
+              
+              // Fish body fading out from top to bottom
+              const fadeY = fish.size * (fish.dissolveProgress * 2 - 1)
+              ctx.globalAlpha = fish.opacity * (1 - fish.dissolveProgress * 0.8)
+              ctx.fillStyle = "#ffffff"
+              
+              ctx.beginPath()
+              ctx.ellipse(0, 0, fish.size * (1 - fish.dissolveProgress * 0.3), fish.size * 0.4 * (1 - fish.dissolveProgress * 0.5), 0, 0, Math.PI * 2)
+              ctx.fill()
+              
+              ctx.restore()
+              
+              // Spawn new matrix characters from the fish
+              if (Math.random() > 0.7 && fish.dissolveChars) {
+                const matrixChars = "01{}[]<>/=;:$¥€£"
+                fish.dissolveChars.push({
+                  char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
+                  x: fish.x + (Math.random() - 0.5) * fish.size * 1.5,
+                  y: fish.y + (Math.random() - 0.5) * fish.size * 0.5,
+                  vy: 0.5 + Math.random() * 1,
+                  opacity: 0.6 + Math.random() * 0.3
+                })
+              }
+            }
+            
+            // Draw falling matrix characters
+            if (fish.dissolveChars) {
+              ctx.font = `${fish.size * 0.5}px "IBM Plex Mono", monospace`
+              ctx.textAlign = "center"
+              fish.dissolveChars.forEach(dc => {
+                ctx.globalAlpha = dc.opacity
+                ctx.fillStyle = `rgba(100, 255, 150, ${dc.opacity})`
+                ctx.fillText(dc.char, dc.x, dc.y)
+              })
+            }
+            
+            // Fish fully dissolved - respawn it
+            if (fish.dissolveProgress >= 1 && (!fish.dissolveChars || fish.dissolveChars.length === 0)) {
+              fish.dissolving = false
+              fish.dissolveProgress = 0
+              fish.dissolveChars = []
+              // Respawn at edge of screen
+              const spawnSide = Math.random() > 0.5
+              fish.x = spawnSide ? -fish.size * 2 : w + fish.size * 2
+              fish.y = 100 + Math.random() * (h - 200)
+              fish.vx = spawnSide ? Math.abs(fish.vx) : -Math.abs(fish.vx)
+              fish.transformTimer = 800 + Math.random() * 600
+              fish.opacity = 0.28 + Math.random() * 0.1
+            }
+            
+            return // Skip normal fish drawing/movement while dissolving
+          }
+          
+          // Schooling fish behavior - slower and more wavy
+          const schoolmates = fishRef.current.filter(f => f.fishType === "small" && f.schoolId === fish.schoolId && f !== fish && !f.dissolving)
           
           // Calculate school center
           let avgX = fish.x
@@ -694,62 +796,84 @@ export function PondEcosystem() {
           avgVx /= count
           avgVy /= count
           
-          // Cohesion - move toward school center
-          fish.vx += (avgX - fish.x) * 0.002
-          fish.vy += (avgY - fish.y) * 0.002
+          // Add wavy sinusoidal motion
+          const waveFreq = 0.02
+          const waveAmp = 0.3
+          fish.vy += Math.sin(time * waveFreq + fish.phase) * waveAmp * 0.05
           
-          // Alignment - match school velocity
-          fish.vx += (avgVx - fish.vx) * 0.02
-          fish.vy += (avgVy - fish.vy) * 0.02
+          // Cohesion - move toward school center (gentler)
+          fish.vx += (avgX - fish.x) * 0.001
+          fish.vy += (avgY - fish.y) * 0.001
+          
+          // Alignment - match school velocity (gentler)
+          fish.vx += (avgVx - fish.vx) * 0.01
+          fish.vy += (avgVy - fish.vy) * 0.01
           
           // Separation - avoid getting too close
           schoolmates.forEach(mate => {
             const dx = fish.x - mate.x
             const dy = fish.y - mate.y
             const dist = Math.sqrt(dx * dx + dy * dy)
-            if (dist < 40 && dist > 0) {
-              fish.vx += (dx / dist) * 0.1
-              fish.vy += (dy / dist) * 0.1
+            if (dist < 35 && dist > 0) {
+              fish.vx += (dx / dist) * 0.05
+              fish.vy += (dy / dist) * 0.05
             }
           })
           
-          // Speed limit
+          // Speed limit - slower
           const speed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy)
-          const maxSpeed = 3.5
-          const minSpeed = 1.5
+          const maxSpeed = 1.8
+          const minSpeed = 0.6
           if (speed > maxSpeed) {
             fish.vx = (fish.vx / speed) * maxSpeed
             fish.vy = (fish.vy / speed) * maxSpeed
           }
-          if (speed < minSpeed) {
+          if (speed < minSpeed && speed > 0) {
             fish.vx = (fish.vx / speed) * minSpeed
             fish.vy = (fish.vy / speed) * minSpeed
           }
           
           fish.x += fish.vx
           fish.y += fish.vy
-          fish.phase += 0.1
+          fish.phase += 0.04 // Slower phase for smoother movement
           
           // Wrap around screen
           if (fish.x > w + fish.size * 2) fish.x = -fish.size * 2
           if (fish.x < -fish.size * 2) fish.x = w + fish.size * 2
-          if (fish.y < 50) fish.vy = Math.abs(fish.vy)
-          if (fish.y > h - 50) fish.vy = -Math.abs(fish.vy)
           
-          // Random school direction changes
-          if (Math.random() > 0.998 && fish.schoolId !== undefined) {
+          // Wavy vertical bounds
+          const waveOffset = Math.sin(time * 0.01 + fish.schoolId! * 2) * 50
+          if (fish.y < 80 + waveOffset) fish.vy = Math.abs(fish.vy) * 0.5
+          if (fish.y > h - 80 + waveOffset) fish.vy = -Math.abs(fish.vy) * 0.5
+          
+          // Random gentle school direction changes
+          if (Math.random() > 0.999 && fish.schoolId !== undefined) {
             const newDirection = Math.random() > 0.5 ? 1 : -1
-            fishRef.current.filter(f => f.schoolId === fish.schoolId).forEach(f => {
-              f.vx = newDirection * (2 + Math.random() * 1)
+            fishRef.current.filter(f => f.schoolId === fish.schoolId && !f.dissolving).forEach(f => {
+              f.vx = newDirection * (0.8 + Math.random() * 0.5)
             })
           }
           
-          // Transform timer (splash)
+          // Transform timer - triggers dissolve instead of splash
           if (fish.transformTimer > 0) {
             fish.transformTimer--
             if (fish.transformTimer === 0) {
-              createSplash(fish.x, fish.y, false)
-              fish.transformTimer = 750 + Math.random() * 180
+              // Start dissolving into matrix code
+              fish.dissolving = true
+              fish.dissolveProgress = 0
+              fish.dissolveChars = []
+              
+              // Create initial burst of matrix characters
+              const matrixChars = "01{}[]<>/=;:$¥€£"
+              for (let i = 0; i < 12; i++) {
+                fish.dissolveChars.push({
+                  char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
+                  x: fish.x + (Math.random() - 0.5) * fish.size,
+                  y: fish.y + (Math.random() - 0.5) * fish.size * 0.5,
+                  vy: 0.3 + Math.random() * 0.8,
+                  opacity: 0.7 + Math.random() * 0.3
+                })
+              }
             }
           }
         } else {
