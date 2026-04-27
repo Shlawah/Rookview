@@ -9,55 +9,101 @@ interface Entity {
   vy: number
   size: number
   type: "fish" | "chess"
-  variant: number
+  variant: number // 0: shark, 1: stingray, 2: gar, 3: regular fish for fish | 0-5 for chess
   opacity: number
   rotation: number
   flipX: boolean
+  tailPhase: number // For tail animation
+}
+
+interface MatrixNumber {
+  x: number
+  y: number
+  value: string
+  opacity: number
+  speed: number
+  size: number
+}
+
+interface Particle {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  value: string
+  opacity: number
+  life: number
+  maxLife: number
+  size: number
 }
 
 export function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const entitiesRef = useRef<Entity[]>([])
+  const matrixNumbersRef = useRef<MatrixNumber[]>([])
+  const particlesRef = useRef<Particle[]>([])
   const animationFrameRef = useRef<number>(0)
+  const lastExplosionRef = useRef<number>(0)
+
+  const createMatrixNumber = useCallback((width: number, height: number): MatrixNumber => {
+    return {
+      x: Math.random() * width,
+      y: Math.random() * height,
+      value: String(Math.floor(Math.random() * 10)),
+      opacity: 0.15 + Math.random() * 0.35,
+      speed: 0.3 + Math.random() * 0.5,
+      size: 14 + Math.random() * 10,
+    }
+  }, [])
 
   const createEntity = useCallback((width: number, height: number, fromEdge = true): Entity => {
-    const isChess = Math.random() > 0.5
+    const isChess = Math.random() > 0.6 // 40% fish, 60% chess
     const type: "fish" | "chess" = isChess ? "chess" : "fish"
     
     let x: number, y: number, vx: number, vy: number
     
     if (fromEdge) {
-      const edge = Math.floor(Math.random() * 4)
-      switch (edge) {
-        case 0: // Left
-          x = -100
-          y = Math.random() * height
-          vx = (isChess ? 2.5 : 0.8) + Math.random() * (isChess ? 2 : 0.6)
-          vy = (Math.random() - 0.5) * (isChess ? 2 : 0.4)
-          break
-        case 1: // Right
-          x = width + 100
-          y = Math.random() * height
-          vx = -(isChess ? 2.5 : 0.8) - Math.random() * (isChess ? 2 : 0.6)
-          vy = (Math.random() - 0.5) * (isChess ? 2 : 0.4)
-          break
-        case 2: // Top
-          x = Math.random() * width
-          y = -100
-          vx = (Math.random() - 0.5) * (isChess ? 2 : 0.4)
-          vy = (isChess ? 2.5 : 0.8) + Math.random() * (isChess ? 2 : 0.6)
-          break
-        default: // Bottom
-          x = Math.random() * width
-          y = height + 100
-          vx = (Math.random() - 0.5) * (isChess ? 2 : 0.4)
-          vy = -(isChess ? 2.5 : 0.8) - Math.random() * (isChess ? 2 : 0.6)
+      if (isChess) {
+        // Chess pieces can come from any edge
+        const edge = Math.floor(Math.random() * 4)
+        switch (edge) {
+          case 0: // Left
+            x = -120
+            y = Math.random() * height
+            vx = 2 + Math.random() * 2
+            vy = (Math.random() - 0.5) * 1.5
+            break
+          case 1: // Right
+            x = width + 120
+            y = Math.random() * height
+            vx = -(2 + Math.random() * 2)
+            vy = (Math.random() - 0.5) * 1.5
+            break
+          case 2: // Top
+            x = Math.random() * width
+            y = -120
+            vx = (Math.random() - 0.5) * 1.5
+            vy = 2 + Math.random() * 2
+            break
+          default: // Bottom
+            x = Math.random() * width
+            y = height + 120
+            vx = (Math.random() - 0.5) * 1.5
+            vy = -(2 + Math.random() * 2)
+        }
+      } else {
+        // Fish only swim horizontally
+        const fromLeft = Math.random() > 0.5
+        x = fromLeft ? -200 : width + 200
+        y = 100 + Math.random() * (height - 200)
+        vx = fromLeft ? (0.5 + Math.random() * 0.8) : -(0.5 + Math.random() * 0.8)
+        vy = (Math.random() - 0.5) * 0.15
       }
     } else {
       x = Math.random() * width
       y = Math.random() * height
-      vx = (Math.random() - 0.5) * (isChess ? 3 : 1.2)
-      vy = (Math.random() - 0.5) * (isChess ? 3 : 1.2)
+      vx = isChess ? (Math.random() - 0.5) * 3 : (Math.random() > 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.5)
+      vy = isChess ? (Math.random() - 0.5) * 3 : (Math.random() - 0.5) * 0.15
     }
 
     return {
@@ -65,87 +111,297 @@ export function AnimatedBackground() {
       y,
       vx,
       vy,
-      size: isChess ? 80 + Math.random() * 40 : 100 + Math.random() * 50,
+      size: isChess ? 90 + Math.random() * 40 : 180 + Math.random() * 80, // Fish are much larger
       type,
-      variant: Math.floor(Math.random() * 6),
-      opacity: 0.2 + Math.random() * 0.15,
+      variant: isChess ? Math.floor(Math.random() * 6) : Math.floor(Math.random() * 4),
+      opacity: 0.25 + Math.random() * 0.15,
       rotation: Math.random() * Math.PI * 2,
       flipX: vx < 0,
+      tailPhase: Math.random() * Math.PI * 2,
     }
   }, [])
 
-  // Draw a properly proportioned fish
-  const drawFish = useCallback((ctx: CanvasRenderingContext2D, entity: Entity) => {
+  const createExplosion = useCallback((entity: Entity) => {
+    const particleCount = 12
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2
+      const speed = 1.5 + Math.random() * 2
+      particlesRef.current.push({
+        x: entity.x,
+        y: entity.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        value: String(Math.floor(Math.random() * 10)),
+        opacity: 0.8,
+        life: 120,
+        maxLife: 120,
+        size: 16 + Math.random() * 8,
+      })
+    }
+  }, [])
+
+  // Draw shark
+  const drawShark = useCallback((ctx: CanvasRenderingContext2D, entity: Entity, time: number) => {
     ctx.save()
     ctx.translate(entity.x, entity.y)
     ctx.scale(entity.flipX ? -1 : 1, 1)
     ctx.globalAlpha = entity.opacity
     
     const s = entity.size
-    const bodyColor = "#d1d5db"
-    const finColor = "#9ca3af"
-    const outlineColor = "#6b7280"
+    const tailWave = Math.sin(time * 0.004 + entity.tailPhase) * 0.15
     
-    // Main body - natural fish oval shape
-    ctx.beginPath()
-    ctx.moveTo(s * 0.5, 0) // Nose
-    ctx.bezierCurveTo(s * 0.45, -s * 0.25, s * 0.1, -s * 0.35, -s * 0.2, -s * 0.25)
-    ctx.bezierCurveTo(-s * 0.35, -s * 0.15, -s * 0.4, 0, -s * 0.4, 0)
-    ctx.bezierCurveTo(-s * 0.4, 0, -s * 0.35, s * 0.15, -s * 0.2, s * 0.25)
-    ctx.bezierCurveTo(s * 0.1, s * 0.35, s * 0.45, s * 0.25, s * 0.5, 0)
-    ctx.fillStyle = bodyColor
-    ctx.fill()
-    ctx.strokeStyle = outlineColor
+    ctx.fillStyle = "#9ca3af"
+    ctx.strokeStyle = "#6b7280"
     ctx.lineWidth = 2
+    
+    // Body - sleek shark shape
+    ctx.beginPath()
+    ctx.moveTo(s * 0.5, 0) // Pointed nose
+    ctx.quadraticCurveTo(s * 0.4, -s * 0.12, s * 0.2, -s * 0.15)
+    ctx.quadraticCurveTo(-s * 0.1, -s * 0.18, -s * 0.3, -s * 0.1)
+    ctx.lineTo(-s * 0.4 + tailWave * s, 0)
+    ctx.lineTo(-s * 0.3, s * 0.1)
+    ctx.quadraticCurveTo(-s * 0.1, s * 0.18, s * 0.2, s * 0.12)
+    ctx.quadraticCurveTo(s * 0.4, s * 0.08, s * 0.5, 0)
+    ctx.fill()
     ctx.stroke()
     
-    // Tail fin - forked
+    // Dorsal fin - iconic shark fin
+    ctx.beginPath()
+    ctx.moveTo(s * 0.05, -s * 0.15)
+    ctx.lineTo(-s * 0.05, -s * 0.35)
+    ctx.lineTo(-s * 0.15, -s * 0.15)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    
+    // Tail fin
     ctx.beginPath()
     ctx.moveTo(-s * 0.35, 0)
-    ctx.lineTo(-s * 0.6, -s * 0.25)
-    ctx.lineTo(-s * 0.5, 0)
-    ctx.lineTo(-s * 0.6, s * 0.25)
+    ctx.lineTo(-s * 0.55 + tailWave * s * 2, -s * 0.2)
+    ctx.lineTo(-s * 0.45 + tailWave * s, 0)
+    ctx.lineTo(-s * 0.55 + tailWave * s * 2, s * 0.12)
     ctx.closePath()
-    ctx.fillStyle = finColor
     ctx.fill()
-    ctx.strokeStyle = outlineColor
+    ctx.stroke()
+    
+    // Pectoral fin
+    ctx.beginPath()
+    ctx.moveTo(s * 0.1, s * 0.1)
+    ctx.lineTo(s * 0.0, s * 0.25)
+    ctx.lineTo(-s * 0.1, s * 0.1)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    
+    // Gill slits
+    ctx.beginPath()
+    ctx.moveTo(s * 0.25, -s * 0.05)
+    ctx.lineTo(s * 0.22, s * 0.05)
+    ctx.moveTo(s * 0.2, -s * 0.06)
+    ctx.lineTo(s * 0.17, s * 0.05)
+    ctx.moveTo(s * 0.15, -s * 0.07)
+    ctx.lineTo(s * 0.12, s * 0.05)
+    ctx.strokeStyle = "#4b5563"
     ctx.lineWidth = 1.5
     ctx.stroke()
     
-    // Dorsal fin (top)
+    // Eye
     ctx.beginPath()
-    ctx.moveTo(s * 0.1, -s * 0.28)
-    ctx.quadraticCurveTo(0, -s * 0.45, -s * 0.15, -s * 0.3)
-    ctx.lineTo(s * 0.1, -s * 0.28)
-    ctx.fillStyle = finColor
+    ctx.arc(s * 0.35, -s * 0.03, s * 0.025, 0, Math.PI * 2)
+    ctx.fillStyle = "#1f2937"
+    ctx.fill()
+    
+    ctx.restore()
+  }, [])
+
+  // Draw stingray
+  const drawStingray = useCallback((ctx: CanvasRenderingContext2D, entity: Entity, time: number) => {
+    ctx.save()
+    ctx.translate(entity.x, entity.y)
+    ctx.scale(entity.flipX ? -1 : 1, 1)
+    ctx.globalAlpha = entity.opacity
+    
+    const s = entity.size
+    const wingWave = Math.sin(time * 0.003 + entity.tailPhase) * 0.08
+    
+    ctx.fillStyle = "#a1a1aa"
+    ctx.strokeStyle = "#71717a"
+    ctx.lineWidth = 2
+    
+    // Body - diamond/kite shape with undulating wings
+    ctx.beginPath()
+    ctx.moveTo(s * 0.35, 0) // Nose
+    ctx.quadraticCurveTo(s * 0.2, -s * 0.15 + wingWave * s, 0, -s * 0.35 + wingWave * s)
+    ctx.quadraticCurveTo(-s * 0.15, -s * 0.2 + wingWave * s * 0.5, -s * 0.25, 0)
+    ctx.quadraticCurveTo(-s * 0.15, s * 0.2 - wingWave * s * 0.5, 0, s * 0.35 - wingWave * s)
+    ctx.quadraticCurveTo(s * 0.2, s * 0.15 - wingWave * s, s * 0.35, 0)
     ctx.fill()
     ctx.stroke()
     
-    // Pectoral fin (side)
+    // Tail - long whip tail
     ctx.beginPath()
-    ctx.moveTo(s * 0.15, s * 0.1)
-    ctx.quadraticCurveTo(s * 0.2, s * 0.3, 0, s * 0.28)
-    ctx.lineTo(s * 0.15, s * 0.1)
-    ctx.fillStyle = finColor
+    ctx.moveTo(-s * 0.2, 0)
+    ctx.quadraticCurveTo(-s * 0.4, s * 0.02, -s * 0.65, -s * 0.05)
+    ctx.strokeStyle = "#71717a"
+    ctx.lineWidth = 3
+    ctx.stroke()
+    
+    // Eyes
+    ctx.beginPath()
+    ctx.arc(s * 0.15, -s * 0.08, s * 0.025, 0, Math.PI * 2)
+    ctx.arc(s * 0.15, s * 0.08, s * 0.025, 0, Math.PI * 2)
+    ctx.fillStyle = "#27272a"
+    ctx.fill()
+    
+    // Spots pattern
+    ctx.beginPath()
+    ctx.arc(0, -s * 0.12, s * 0.03, 0, Math.PI * 2)
+    ctx.arc(0, s * 0.12, s * 0.03, 0, Math.PI * 2)
+    ctx.arc(-s * 0.08, 0, s * 0.025, 0, Math.PI * 2)
+    ctx.fillStyle = "#d4d4d8"
+    ctx.fill()
+    
+    ctx.restore()
+  }, [])
+
+  // Draw gar (long needle-nose fish)
+  const drawGar = useCallback((ctx: CanvasRenderingContext2D, entity: Entity, time: number) => {
+    ctx.save()
+    ctx.translate(entity.x, entity.y)
+    ctx.scale(entity.flipX ? -1 : 1, 1)
+    ctx.globalAlpha = entity.opacity
+    
+    const s = entity.size
+    const bodyWave = Math.sin(time * 0.005 + entity.tailPhase)
+    
+    ctx.fillStyle = "#b8c0cc"
+    ctx.strokeStyle = "#6b7280"
+    ctx.lineWidth = 2
+    
+    // Long needle-like body
+    ctx.beginPath()
+    ctx.moveTo(s * 0.55, 0) // Long pointed snout
+    ctx.quadraticCurveTo(s * 0.3, -s * 0.02, s * 0.2, -s * 0.06)
+    ctx.quadraticCurveTo(0, -s * 0.1, -s * 0.2, -s * 0.08 + bodyWave * s * 0.02)
+    ctx.lineTo(-s * 0.35, -s * 0.05 + bodyWave * s * 0.03)
+    ctx.lineTo(-s * 0.35, s * 0.05 + bodyWave * s * 0.03)
+    ctx.lineTo(-s * 0.2, s * 0.08 + bodyWave * s * 0.02)
+    ctx.quadraticCurveTo(0, s * 0.1, s * 0.2, s * 0.06)
+    ctx.quadraticCurveTo(s * 0.3, s * 0.02, s * 0.55, 0)
+    ctx.fill()
+    ctx.stroke()
+    
+    // Dorsal fin (set far back)
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.18, -s * 0.08)
+    ctx.lineTo(-s * 0.22, -s * 0.18)
+    ctx.lineTo(-s * 0.32, -s * 0.08)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    
+    // Tail fin
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.32, 0)
+    ctx.lineTo(-s * 0.48 + bodyWave * s * 0.04, -s * 0.12)
+    ctx.lineTo(-s * 0.42 + bodyWave * s * 0.03, 0)
+    ctx.lineTo(-s * 0.48 + bodyWave * s * 0.04, s * 0.12)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    
+    // Anal fin
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.18, s * 0.08)
+    ctx.lineTo(-s * 0.22, s * 0.16)
+    ctx.lineTo(-s * 0.3, s * 0.08)
+    ctx.closePath()
     ctx.fill()
     ctx.stroke()
     
     // Eye
     ctx.beginPath()
-    ctx.arc(s * 0.3, -s * 0.05, s * 0.06, 0, Math.PI * 2)
+    ctx.arc(s * 0.22, -s * 0.01, s * 0.02, 0, Math.PI * 2)
     ctx.fillStyle = "#1f2937"
     ctx.fill()
     
-    // Eye highlight
+    // Teeth indication on snout
     ctx.beginPath()
-    ctx.arc(s * 0.32, -s * 0.07, s * 0.02, 0, Math.PI * 2)
+    ctx.moveTo(s * 0.45, -s * 0.01)
+    ctx.lineTo(s * 0.45, s * 0.01)
+    ctx.strokeStyle = "#4b5563"
+    ctx.lineWidth = 1
+    ctx.stroke()
+    
+    ctx.restore()
+  }, [])
+
+  // Draw regular fish
+  const drawRegularFish = useCallback((ctx: CanvasRenderingContext2D, entity: Entity, time: number) => {
+    ctx.save()
+    ctx.translate(entity.x, entity.y)
+    ctx.scale(entity.flipX ? -1 : 1, 1)
+    ctx.globalAlpha = entity.opacity
+    
+    const s = entity.size
+    const tailWave = Math.sin(time * 0.006 + entity.tailPhase) * 0.12
+    
+    ctx.fillStyle = "#d1d5db"
+    ctx.strokeStyle = "#6b7280"
+    ctx.lineWidth = 2
+    
+    // Body - classic oval fish shape
+    ctx.beginPath()
+    ctx.moveTo(s * 0.4, 0)
+    ctx.quadraticCurveTo(s * 0.35, -s * 0.2, s * 0.1, -s * 0.25)
+    ctx.quadraticCurveTo(-s * 0.15, -s * 0.22, -s * 0.3, 0)
+    ctx.quadraticCurveTo(-s * 0.15, s * 0.22, s * 0.1, s * 0.25)
+    ctx.quadraticCurveTo(s * 0.35, s * 0.2, s * 0.4, 0)
+    ctx.fill()
+    ctx.stroke()
+    
+    // Tail
+    ctx.beginPath()
+    ctx.moveTo(-s * 0.25, 0)
+    ctx.lineTo(-s * 0.45 + tailWave * s, -s * 0.18)
+    ctx.lineTo(-s * 0.35 + tailWave * s * 0.5, 0)
+    ctx.lineTo(-s * 0.45 + tailWave * s, s * 0.18)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    
+    // Dorsal fin
+    ctx.beginPath()
+    ctx.moveTo(s * 0.05, -s * 0.22)
+    ctx.quadraticCurveTo(-s * 0.02, -s * 0.38, -s * 0.12, -s * 0.25)
+    ctx.lineTo(s * 0.05, -s * 0.22)
+    ctx.fill()
+    ctx.stroke()
+    
+    // Pectoral fin
+    ctx.beginPath()
+    ctx.moveTo(s * 0.1, s * 0.08)
+    ctx.quadraticCurveTo(s * 0.15, s * 0.22, -s * 0.02, s * 0.2)
+    ctx.lineTo(s * 0.1, s * 0.08)
+    ctx.fill()
+    ctx.stroke()
+    
+    // Eye
+    ctx.beginPath()
+    ctx.arc(s * 0.22, -s * 0.04, s * 0.045, 0, Math.PI * 2)
+    ctx.fillStyle = "#1f2937"
+    ctx.fill()
+    
+    ctx.beginPath()
+    ctx.arc(s * 0.24, -s * 0.055, s * 0.015, 0, Math.PI * 2)
     ctx.fillStyle = "#ffffff"
     ctx.fill()
     
     ctx.restore()
   }, [])
 
-  // Draw properly proportioned chess pieces
+  // Draw chess pieces
   const drawChessPiece = useCallback((ctx: CanvasRenderingContext2D, entity: Entity) => {
     ctx.save()
     ctx.translate(entity.x, entity.y)
@@ -159,12 +415,10 @@ export function AnimatedBackground() {
     
     switch (entity.variant) {
       case 0: // Pawn
-        // Head
         ctx.beginPath()
         ctx.arc(0, -s * 0.3, s * 0.15, 0, Math.PI * 2)
         ctx.fill()
         ctx.stroke()
-        // Neck
         ctx.beginPath()
         ctx.moveTo(-s * 0.08, -s * 0.15)
         ctx.lineTo(s * 0.08, -s * 0.15)
@@ -173,7 +427,6 @@ export function AnimatedBackground() {
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
-        // Body
         ctx.beginPath()
         ctx.moveTo(-s * 0.2, s * 0.35)
         ctx.lineTo(s * 0.2, s * 0.35)
@@ -182,7 +435,6 @@ export function AnimatedBackground() {
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
-        // Base
         ctx.beginPath()
         ctx.ellipse(0, s * 0.38, s * 0.25, s * 0.08, 0, 0, Math.PI * 2)
         ctx.fill()
@@ -190,17 +442,14 @@ export function AnimatedBackground() {
         break
         
       case 1: // Rook
-        // Tower body
         ctx.fillRect(-s * 0.15, -s * 0.2, s * 0.3, s * 0.5)
         ctx.strokeRect(-s * 0.15, -s * 0.2, s * 0.3, s * 0.5)
-        // Crenellations
         ctx.fillRect(-s * 0.2, -s * 0.38, s * 0.12, s * 0.18)
         ctx.fillRect(-s * 0.06, -s * 0.38, s * 0.12, s * 0.18)
         ctx.fillRect(s * 0.08, -s * 0.38, s * 0.12, s * 0.18)
         ctx.strokeRect(-s * 0.2, -s * 0.38, s * 0.12, s * 0.18)
         ctx.strokeRect(-s * 0.06, -s * 0.38, s * 0.12, s * 0.18)
         ctx.strokeRect(s * 0.08, -s * 0.38, s * 0.12, s * 0.18)
-        // Base
         ctx.beginPath()
         ctx.ellipse(0, s * 0.35, s * 0.22, s * 0.08, 0, 0, Math.PI * 2)
         ctx.fill()
@@ -209,7 +458,6 @@ export function AnimatedBackground() {
         
       case 2: // Knight
         ctx.beginPath()
-        // Head shape
         ctx.moveTo(s * 0.15, -s * 0.35)
         ctx.quadraticCurveTo(s * 0.28, -s * 0.3, s * 0.22, -s * 0.12)
         ctx.lineTo(s * 0.3, -s * 0.08)
@@ -223,20 +471,17 @@ export function AnimatedBackground() {
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
-        // Ear
         ctx.beginPath()
         ctx.moveTo(s * 0.05, -s * 0.35)
         ctx.lineTo(s * 0.1, -s * 0.48)
         ctx.lineTo(s * 0.15, -s * 0.35)
         ctx.fill()
         ctx.stroke()
-        // Eye
         ctx.beginPath()
         ctx.arc(s * 0.18, -s * 0.18, s * 0.04, 0, Math.PI * 2)
         ctx.fillStyle = "#374151"
         ctx.fill()
         ctx.fillStyle = "#e5e7eb"
-        // Base
         ctx.beginPath()
         ctx.ellipse(0, s * 0.35, s * 0.18, s * 0.08, 0, 0, Math.PI * 2)
         ctx.fill()
@@ -244,12 +489,10 @@ export function AnimatedBackground() {
         break
         
       case 3: // Bishop
-        // Top point
         ctx.beginPath()
         ctx.arc(0, -s * 0.42, s * 0.07, 0, Math.PI * 2)
         ctx.fill()
         ctx.stroke()
-        // Head
         ctx.beginPath()
         ctx.moveTo(0, -s * 0.35)
         ctx.bezierCurveTo(s * 0.18, -s * 0.3, s * 0.18, -s * 0.05, s * 0.12, s * 0.02)
@@ -257,7 +500,6 @@ export function AnimatedBackground() {
         ctx.bezierCurveTo(-s * 0.18, -s * 0.05, -s * 0.18, -s * 0.3, 0, -s * 0.35)
         ctx.fill()
         ctx.stroke()
-        // Slit
         ctx.beginPath()
         ctx.moveTo(-s * 0.02, -s * 0.32)
         ctx.lineTo(s * 0.08, -s * 0.1)
@@ -266,7 +508,6 @@ export function AnimatedBackground() {
         ctx.stroke()
         ctx.strokeStyle = "#6b7280"
         ctx.lineWidth = 2
-        // Body
         ctx.beginPath()
         ctx.moveTo(-s * 0.18, s * 0.35)
         ctx.lineTo(s * 0.18, s * 0.35)
@@ -275,7 +516,6 @@ export function AnimatedBackground() {
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
-        // Base
         ctx.beginPath()
         ctx.ellipse(0, s * 0.38, s * 0.22, s * 0.08, 0, 0, Math.PI * 2)
         ctx.fill()
@@ -283,7 +523,6 @@ export function AnimatedBackground() {
         break
         
       case 4: // Queen
-        // Crown points
         for (let i = 0; i < 5; i++) {
           const angle = -Math.PI / 2 + (i - 2) * 0.4
           const px = Math.cos(angle) * s * 0.2
@@ -293,7 +532,6 @@ export function AnimatedBackground() {
           ctx.fill()
           ctx.stroke()
         }
-        // Crown body
         ctx.beginPath()
         ctx.moveTo(-s * 0.2, -s * 0.12)
         ctx.lineTo(-s * 0.18, -s * 0.32)
@@ -307,7 +545,6 @@ export function AnimatedBackground() {
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
-        // Body
         ctx.beginPath()
         ctx.moveTo(-s * 0.2, s * 0.35)
         ctx.lineTo(s * 0.2, s * 0.35)
@@ -316,7 +553,6 @@ export function AnimatedBackground() {
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
-        // Base
         ctx.beginPath()
         ctx.ellipse(0, s * 0.38, s * 0.24, s * 0.08, 0, 0, Math.PI * 2)
         ctx.fill()
@@ -324,12 +560,10 @@ export function AnimatedBackground() {
         break
         
       case 5: // King
-        // Cross
         ctx.fillRect(-s * 0.04, -s * 0.52, s * 0.08, s * 0.18)
         ctx.fillRect(-s * 0.1, -s * 0.48, s * 0.2, s * 0.06)
         ctx.strokeRect(-s * 0.04, -s * 0.52, s * 0.08, s * 0.18)
         ctx.strokeRect(-s * 0.1, -s * 0.48, s * 0.2, s * 0.06)
-        // Crown
         ctx.beginPath()
         ctx.moveTo(-s * 0.16, -s * 0.15)
         ctx.lineTo(-s * 0.18, -s * 0.35)
@@ -343,7 +577,6 @@ export function AnimatedBackground() {
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
-        // Body
         ctx.beginPath()
         ctx.moveTo(-s * 0.2, s * 0.35)
         ctx.lineTo(s * 0.2, s * 0.35)
@@ -352,7 +585,6 @@ export function AnimatedBackground() {
         ctx.closePath()
         ctx.fill()
         ctx.stroke()
-        // Base
         ctx.beginPath()
         ctx.ellipse(0, s * 0.38, s * 0.24, s * 0.08, 0, 0, Math.PI * 2)
         ctx.fill()
@@ -378,13 +610,82 @@ export function AnimatedBackground() {
     resizeCanvas()
     window.addEventListener("resize", resizeCanvas)
 
-    // Initialize entities
-    for (let i = 0; i < 8; i++) {
+    // Initialize fewer entities - only 4 total
+    for (let i = 0; i < 4; i++) {
       entitiesRef.current.push(createEntity(canvas.width, canvas.height, false))
+    }
+
+    // Initialize sparse matrix numbers
+    for (let i = 0; i < 60; i++) {
+      matrixNumbersRef.current.push(createMatrixNumber(canvas.width, canvas.height))
     }
 
     const animate = (time: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // Draw matrix numbers with glow
+      ctx.font = "bold 18px monospace"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      
+      for (const num of matrixNumbersRef.current) {
+        // Glow effect
+        ctx.shadowColor = "#22c55e"
+        ctx.shadowBlur = 12
+        ctx.globalAlpha = num.opacity
+        ctx.fillStyle = "#22c55e"
+        ctx.font = `bold ${num.size}px monospace`
+        ctx.fillText(num.value, num.x, num.y)
+        
+        // Move down slowly
+        num.y += num.speed
+        
+        // Occasionally change the number
+        if (Math.random() < 0.005) {
+          num.value = String(Math.floor(Math.random() * 10))
+        }
+        
+        // Reset when off screen
+        if (num.y > canvas.height + 30) {
+          num.y = -30
+          num.x = Math.random() * canvas.width
+          num.value = String(Math.floor(Math.random() * 10))
+        }
+      }
+      
+      ctx.shadowBlur = 0
+      
+      // Draw explosion particles
+      for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+        const p = particlesRef.current[i]
+        
+        p.x += p.vx
+        p.y += p.vy
+        p.vy += 0.02 // Subtle gravity
+        p.vx *= 0.99
+        p.vy *= 0.99
+        p.life--
+        p.opacity = (p.life / p.maxLife) * 0.9
+        
+        if (p.life <= 0) {
+          particlesRef.current.splice(i, 1)
+          continue
+        }
+        
+        ctx.shadowColor = "#22c55e"
+        ctx.shadowBlur = 8
+        ctx.globalAlpha = p.opacity
+        ctx.fillStyle = "#22c55e"
+        ctx.font = `bold ${p.size}px monospace`
+        ctx.fillText(p.value, p.x, p.y)
+        
+        // Change number occasionally
+        if (Math.random() < 0.1) {
+          p.value = String(Math.floor(Math.random() * 10))
+        }
+      }
+      
+      ctx.shadowBlur = 0
       
       const entities = entitiesRef.current
 
@@ -395,20 +696,20 @@ export function AnimatedBackground() {
         entity.x += entity.vx
         entity.y += entity.vy
         
-        // Gentle wave motion for fish
+        // Gentle swimming motion for fish
         if (entity.type === "fish") {
-          entity.y += Math.sin(time * 0.002 + entity.x * 0.01) * 0.4
+          entity.y += Math.sin(time * 0.001 + entity.tailPhase) * 0.3
         }
         
         // Slow rotation for chess pieces
         if (entity.type === "chess") {
-          entity.rotation += 0.006
+          entity.rotation += 0.004
         }
         
         entity.flipX = entity.vx < 0
         
         // Check if entity is off screen
-        const margin = 150
+        const margin = 250
         if (
           entity.x < -margin ||
           entity.x > canvas.width + margin ||
@@ -421,10 +722,29 @@ export function AnimatedBackground() {
         }
         
         if (entity.type === "fish") {
-          drawFish(ctx, entity)
+          switch (entity.variant) {
+            case 0:
+              drawShark(ctx, entity, time)
+              break
+            case 1:
+              drawStingray(ctx, entity, time)
+              break
+            case 2:
+              drawGar(ctx, entity, time)
+              break
+            default:
+              drawRegularFish(ctx, entity, time)
+          }
         } else {
           drawChessPiece(ctx, entity)
         }
+      }
+      
+      // Trigger explosion every 10 seconds
+      if (time - lastExplosionRef.current > 10000 && entities.length > 0) {
+        const randomEntity = entities[Math.floor(Math.random() * entities.length)]
+        createExplosion(randomEntity)
+        lastExplosionRef.current = time
       }
 
       animationFrameRef.current = requestAnimationFrame(animate)
@@ -436,7 +756,7 @@ export function AnimatedBackground() {
       window.removeEventListener("resize", resizeCanvas)
       cancelAnimationFrame(animationFrameRef.current)
     }
-  }, [createEntity, drawFish, drawChessPiece])
+  }, [createEntity, createMatrixNumber, createExplosion, drawShark, drawStingray, drawGar, drawRegularFish, drawChessPiece])
 
   return (
     <canvas
