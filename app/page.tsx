@@ -6,18 +6,22 @@ import { Pricing } from "@/components/pricing"
 import { Testimonials } from "@/components/testimonials"
 import { CTA } from "@/components/cta"
 import { Footer } from "@/components/footer"
+import { AnimatedBackground } from "@/components/animated-background"
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <Header />
-      <Hero />
-      <Features />
-      <HowItWorks />
-      <Testimonials />
-      <Pricing />
-      <CTA />
-      <Footer />
+    <main className="relative min-h-screen bg-background text-foreground">
+      <AnimatedBackground />
+      <div className="relative z-10">
+        <Header />
+        <Hero />
+        <Features />
+        <HowItWorks />
+        <Testimonials />
+        <Pricing />
+        <CTA />
+        <Footer />
+      </div>
     </main>
   )
 }
