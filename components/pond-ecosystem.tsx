@@ -20,6 +20,10 @@ interface Fish {
   isDarting?: boolean
   dartDirection?: number
   lureGlow?: number
+  // Schooling behavior
+  schoolId?: number
+  targetX?: number
+  targetY?: number
 }
 
 interface NumberSplash {
@@ -126,18 +130,20 @@ export function PondEcosystem() {
       
       fishRef.current = []
 
-      // Initialize fish: 2 sharks, 6 small fish, 2 code fish
-      // Sharks - big, slow, explode every ~60 seconds (3600 frames)
-      for (let i = 0; i < 2; i++) {
+      // Initialize fish: 3 sharks, schools of small fish, 2 code fish, 1 anglerfish
+      
+      // Sharks - big, faster, can swim off screen and wrap around
+      for (let i = 0; i < 3; i++) {
+        const direction = Math.random() > 0.5 ? 1 : -1
         fishRef.current.push({
-          x: 150 + Math.random() * (w - 300),
+          x: Math.random() * w,
           y: 100 + Math.random() * (h - 200),
-          vx: (Math.random() - 0.5) * 0.25,
-          vy: (Math.random() - 0.5) * 0.08,
-          size: 80 + Math.random() * 30,
+          vx: direction * (1.5 + Math.random() * 1),
+          vy: (Math.random() - 0.5) * 0.5,
+          size: 90 + Math.random() * 40,
           phase: Math.random() * Math.PI * 2,
           transformTimer: 3400 + Math.random() * 400,
-          opacity: 0.25,
+          opacity: 0.3,
           isCodeFish: false,
           codeChars: [],
           alive: true,
@@ -145,36 +151,47 @@ export function PondEcosystem() {
         })
       }
       
-      // Small fish - explode every ~14 seconds (840 frames)
-      for (let i = 0; i < 6; i++) {
-        const section = Math.floor(i / 2)
-        fishRef.current.push({
-          x: 100 + (section / 3) * (w - 200) + (Math.random() - 0.5) * 120,
-          y: 80 + Math.random() * (h - 160),
-          vx: (Math.random() - 0.5) * 0.6,
-          vy: (Math.random() - 0.5) * 0.2,
-          size: 25 + Math.random() * 15,
-          phase: Math.random() * Math.PI * 2,
-          transformTimer: 750 + Math.random() * 180,
-          opacity: 0.2 + Math.random() * 0.1,
-          isCodeFish: false,
-          codeChars: [],
-          alive: true,
-          fishType: "small"
-        })
+      // Schools of small fish - 3 schools with 8-12 fish each
+      for (let school = 0; school < 3; school++) {
+        const schoolCenterX = 200 + Math.random() * (w - 400)
+        const schoolCenterY = 150 + Math.random() * (h - 300)
+        const schoolDirection = Math.random() > 0.5 ? 1 : -1
+        const schoolSpeed = 2 + Math.random() * 1.5
+        const fishCount = 8 + Math.floor(Math.random() * 5)
+        
+        for (let i = 0; i < fishCount; i++) {
+          fishRef.current.push({
+            x: schoolCenterX + (Math.random() - 0.5) * 80,
+            y: schoolCenterY + (Math.random() - 0.5) * 60,
+            vx: schoolDirection * schoolSpeed + (Math.random() - 0.5) * 0.5,
+            vy: (Math.random() - 0.5) * 0.8,
+            size: 18 + Math.random() * 12,
+            phase: Math.random() * Math.PI * 2,
+            transformTimer: 750 + Math.random() * 180,
+            opacity: 0.25 + Math.random() * 0.1,
+            isCodeFish: false,
+            codeChars: [],
+            alive: true,
+            fishType: "small",
+            schoolId: school,
+            targetX: schoolCenterX,
+            targetY: schoolCenterY
+          })
+        }
       }
       
-      // Code fish - never explode, just swim
+      // Code fish - never explode, just swim faster
       for (let i = 0; i < 2; i++) {
+        const direction = Math.random() > 0.5 ? 1 : -1
         fishRef.current.push({
           x: 200 + Math.random() * (w - 400),
           y: 150 + Math.random() * (h - 300),
-          vx: (Math.random() - 0.5) * 0.4,
-          vy: (Math.random() - 0.5) * 0.12,
-          size: 45 + Math.random() * 15,
+          vx: direction * (1.2 + Math.random() * 0.8),
+          vy: (Math.random() - 0.5) * 0.4,
+          size: 50 + Math.random() * 20,
           phase: Math.random() * Math.PI * 2,
           transformTimer: 0,
-          opacity: 0.3,
+          opacity: 0.35,
           isCodeFish: true,
           codeChars: Array.from({ length: 15 }, () => codeChars[Math.floor(Math.random() * codeChars.length)]),
           alive: true,
@@ -182,21 +199,21 @@ export function PondEcosystem() {
         })
       }
 
-      // Anglerfish - huge, scary, darts across screen
+      // Anglerfish - huge, scary, darts across screen even faster
       fishRef.current.push({
-        x: -200, // Start off-screen
+        x: -300,
         y: h * 0.3 + Math.random() * (h * 0.4),
-        vx: 0.3,
+        vx: 0.5,
         vy: 0,
-        size: 150 + Math.random() * 50,
+        size: 180 + Math.random() * 60,
         phase: Math.random() * Math.PI * 2,
         transformTimer: 2000 + Math.random() * 500,
-        opacity: 0.35,
+        opacity: 0.4,
         isCodeFish: false,
         codeChars: [],
         alive: true,
         fishType: "angler",
-        dartTimer: 180 + Math.random() * 120,
+        dartTimer: 120 + Math.random() * 80,
         isDarting: false,
         dartDirection: 1,
         lureGlow: 0
@@ -560,99 +577,203 @@ export function PondEcosystem() {
           fish.dartTimer = (fish.dartTimer || 0) - 1
           
           // Update lure glow
-          fish.lureGlow = 0.5 + Math.sin(time * 0.05) * 0.3 + (fish.isDarting ? 0.3 : 0)
+          fish.lureGlow = 0.5 + Math.sin(time * 0.05) * 0.3 + (fish.isDarting ? 0.5 : 0)
           
           if (fish.isDarting) {
-            // Darting across screen at high speed
-            fish.x += fish.vx * 8
-            fish.y += fish.vy * 2
+            // Darting across screen at very high speed
+            fish.x += fish.vx * 12
+            fish.y += fish.vy * 3
+            fish.phase += 0.08
             
             // Check if reached edge or dart time expired
-            if (fish.x > w + fish.size * 2 || fish.x < -fish.size * 2 || fish.dartTimer! < -60) {
+            if (fish.x > w + fish.size * 2 || fish.x < -fish.size * 2 || fish.dartTimer! < -40) {
               fish.isDarting = false
-              fish.dartTimer = 300 + Math.random() * 200 // Wait before next dart
+              fish.dartTimer = 200 + Math.random() * 150 // Wait before next dart
               
               // Reposition off screen on opposite side
               fish.dartDirection = fish.dartDirection === 1 ? -1 : 1
               fish.x = fish.dartDirection === 1 ? -fish.size * 1.5 : w + fish.size * 1.5
-              fish.y = h * 0.2 + Math.random() * (h * 0.6)
-              fish.vx = fish.dartDirection * 0.3
-              fish.vy = (Math.random() - 0.5) * 0.1
+              fish.y = h * 0.15 + Math.random() * (h * 0.7)
+              fish.vx = fish.dartDirection * 0.8
+              fish.vy = (Math.random() - 0.5) * 0.2
             }
           } else {
             // Slow lurking movement
-            fish.x += fish.vx * 0.5
-            fish.y += fish.vy * 0.5
+            fish.x += fish.vx
+            fish.y += fish.vy
+            fish.phase += 0.02
             
             // Random subtle movements
-            if (Math.random() > 0.98) {
-              fish.vy += (Math.random() - 0.5) * 0.05
-              fish.vy = Math.max(-0.15, Math.min(0.15, fish.vy))
+            if (Math.random() > 0.97) {
+              fish.vy += (Math.random() - 0.5) * 0.1
+              fish.vy = Math.max(-0.3, Math.min(0.3, fish.vy))
             }
             
             // Keep in bounds while lurking
-            if (fish.y < h * 0.15) fish.vy = Math.abs(fish.vy)
-            if (fish.y > h * 0.85) fish.vy = -Math.abs(fish.vy)
+            if (fish.y < h * 0.1) fish.vy = Math.abs(fish.vy)
+            if (fish.y > h * 0.9) fish.vy = -Math.abs(fish.vy)
             
             // Start darting when timer expires
             if (fish.dartTimer! <= 0) {
               fish.isDarting = true
               fish.dartTimer = 0
-              // Set dart direction and speed
-              fish.vx = fish.dartDirection! * (3 + Math.random() * 2)
-              fish.vy = (Math.random() - 0.5) * 0.8
+              // Set dart direction and speed - much faster
+              fish.vx = fish.dartDirection! * (5 + Math.random() * 3)
+              fish.vy = (Math.random() - 0.5) * 1.5
               
               // Create ripple when darting starts
-              createRipple(fish.x, fish.y, 100)
+              createRipple(fish.x, fish.y, 120)
             }
           }
-          
-          fish.phase += 0.03
           
           // Transform timer (splash) for anglerfish
           if (fish.transformTimer > 0) {
             fish.transformTimer--
             if (fish.transformTimer === 0) {
-              createSplash(fish.x, fish.y, true) // Big splash like shark
+              createSplash(fish.x, fish.y, true)
               fish.transformTimer = 2000 + Math.random() * 500
             }
           }
-        } else {
-          // Normal fish movement
+        } else if (fish.fishType === "shark") {
+          // Sharks - swim fast, wrap around screen
           fish.x += fish.vx
           fish.y += fish.vy
-          fish.phase += 0.05
-
-          // Bounce off edges
-          if (fish.x < 80 || fish.x > w - 80) fish.vx *= -1
-          if (fish.y < 50 || fish.y > h - 50) fish.vy *= -1
-
-          // Random direction changes
-          if (Math.random() > 0.995) {
-            if (fish.fishType === "shark") {
-              fish.vx += (Math.random() - 0.5) * 0.08
-              fish.vy += (Math.random() - 0.5) * 0.04
-              fish.vx = Math.max(-0.3, Math.min(0.3, fish.vx))
-              fish.vy = Math.max(-0.1, Math.min(0.1, fish.vy))
-            } else {
-              fish.vx += (Math.random() - 0.5) * 0.2
-              fish.vy += (Math.random() - 0.5) * 0.1
-              fish.vx = Math.max(-0.7, Math.min(0.7, fish.vx))
-              fish.vy = Math.max(-0.25, Math.min(0.25, fish.vy))
-            }
+          fish.phase += 0.06
+          
+          // Wrap around screen edges
+          if (fish.x > w + fish.size * 2) {
+            fish.x = -fish.size * 2
+            fish.y = 100 + Math.random() * (h - 200)
           }
-
+          if (fish.x < -fish.size * 2) {
+            fish.x = w + fish.size * 2
+            fish.y = 100 + Math.random() * (h - 200)
+          }
+          
+          // Gentle vertical movement
+          if (Math.random() > 0.98) {
+            fish.vy += (Math.random() - 0.5) * 0.3
+            fish.vy = Math.max(-1, Math.min(1, fish.vy))
+          }
+          if (fish.y < 80 || fish.y > h - 80) fish.vy *= -0.8
+          
+          // Occasional speed bursts
+          if (Math.random() > 0.998) {
+            fish.vx = (fish.vx > 0 ? 1 : -1) * (2 + Math.random() * 1.5)
+            createRipple(fish.x, fish.y, 60)
+          }
+          
           // Transform timer (splash)
-          if (!fish.isCodeFish && fish.transformTimer > 0) {
+          if (fish.transformTimer > 0) {
             fish.transformTimer--
             if (fish.transformTimer === 0) {
-              const isShark = fish.fishType === "shark"
-              createSplash(fish.x, fish.y, isShark)
-              fish.transformTimer = isShark 
-                ? 3400 + Math.random() * 400 
-                : 750 + Math.random() * 180
+              createSplash(fish.x, fish.y, true)
+              fish.transformTimer = 3400 + Math.random() * 400
             }
           }
+        } else if (fish.fishType === "small") {
+          // Schooling fish behavior
+          const schoolmates = fishRef.current.filter(f => f.fishType === "small" && f.schoolId === fish.schoolId && f !== fish)
+          
+          // Calculate school center
+          let avgX = fish.x
+          let avgY = fish.y
+          let avgVx = fish.vx
+          let avgVy = fish.vy
+          
+          schoolmates.forEach(mate => {
+            avgX += mate.x
+            avgY += mate.y
+            avgVx += mate.vx
+            avgVy += mate.vy
+          })
+          
+          const count = schoolmates.length + 1
+          avgX /= count
+          avgY /= count
+          avgVx /= count
+          avgVy /= count
+          
+          // Cohesion - move toward school center
+          fish.vx += (avgX - fish.x) * 0.002
+          fish.vy += (avgY - fish.y) * 0.002
+          
+          // Alignment - match school velocity
+          fish.vx += (avgVx - fish.vx) * 0.02
+          fish.vy += (avgVy - fish.vy) * 0.02
+          
+          // Separation - avoid getting too close
+          schoolmates.forEach(mate => {
+            const dx = fish.x - mate.x
+            const dy = fish.y - mate.y
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            if (dist < 40 && dist > 0) {
+              fish.vx += (dx / dist) * 0.1
+              fish.vy += (dy / dist) * 0.1
+            }
+          })
+          
+          // Speed limit
+          const speed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy)
+          const maxSpeed = 3.5
+          const minSpeed = 1.5
+          if (speed > maxSpeed) {
+            fish.vx = (fish.vx / speed) * maxSpeed
+            fish.vy = (fish.vy / speed) * maxSpeed
+          }
+          if (speed < minSpeed) {
+            fish.vx = (fish.vx / speed) * minSpeed
+            fish.vy = (fish.vy / speed) * minSpeed
+          }
+          
+          fish.x += fish.vx
+          fish.y += fish.vy
+          fish.phase += 0.1
+          
+          // Wrap around screen
+          if (fish.x > w + fish.size * 2) fish.x = -fish.size * 2
+          if (fish.x < -fish.size * 2) fish.x = w + fish.size * 2
+          if (fish.y < 50) fish.vy = Math.abs(fish.vy)
+          if (fish.y > h - 50) fish.vy = -Math.abs(fish.vy)
+          
+          // Random school direction changes
+          if (Math.random() > 0.998 && fish.schoolId !== undefined) {
+            const newDirection = Math.random() > 0.5 ? 1 : -1
+            fishRef.current.filter(f => f.schoolId === fish.schoolId).forEach(f => {
+              f.vx = newDirection * (2 + Math.random() * 1)
+            })
+          }
+          
+          // Transform timer (splash)
+          if (fish.transformTimer > 0) {
+            fish.transformTimer--
+            if (fish.transformTimer === 0) {
+              createSplash(fish.x, fish.y, false)
+              fish.transformTimer = 750 + Math.random() * 180
+            }
+          }
+        } else {
+          // Code fish - swim steadily, wrap around
+          fish.x += fish.vx
+          fish.y += fish.vy
+          fish.phase += 0.04
+          
+          // Wrap around screen
+          if (fish.x > w + fish.size * 2) {
+            fish.x = -fish.size * 2
+            fish.y = 100 + Math.random() * (h - 200)
+          }
+          if (fish.x < -fish.size * 2) {
+            fish.x = w + fish.size * 2
+            fish.y = 100 + Math.random() * (h - 200)
+          }
+          
+          // Gentle vertical movement
+          if (Math.random() > 0.98) {
+            fish.vy += (Math.random() - 0.5) * 0.2
+            fish.vy = Math.max(-0.8, Math.min(0.8, fish.vy))
+          }
+          if (fish.y < 80 || fish.y > h - 80) fish.vy *= -0.8
         }
 
         drawFish(fish, time)
