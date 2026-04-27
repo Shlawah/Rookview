@@ -126,10 +126,10 @@ export function AnimatedBackground() {
       y,
       vx,
       vy,
-      size: isChess ? 35 + Math.random() * 20 : 50 + Math.random() * 30,
+      size: isChess ? 45 + Math.random() * 25 : 55 + Math.random() * 25,
       type,
       variant: Math.floor(Math.random() * 6),
-      opacity: 0.12 + Math.random() * 0.12,
+      opacity: 0.18 + Math.random() * 0.15,
       rotation: Math.random() * Math.PI * 2,
       flipX: vx < 0,
     }
@@ -169,40 +169,34 @@ export function AnimatedBackground() {
     }
   }, [])
 
-  // Draw a properly proportioned fish using bezier curves
+  // Draw a properly proportioned fish - classic fish shape with good width-to-height ratio
   const drawFish = useCallback((ctx: CanvasRenderingContext2D, entity: Entity) => {
     ctx.save()
     ctx.translate(entity.x, entity.y)
     ctx.scale(entity.flipX ? -1 : 1, 1)
     ctx.globalAlpha = entity.opacity
     
-    const s = entity.size
+    const w = entity.size // width
+    const h = entity.size * 0.6 // height - fish are typically wider than tall
     const bodyColor = "#d1d5db"
     const finColor = "#9ca3af"
     const outlineColor = "#6b7280"
     
-    // Main body using bezier curves for natural fish shape
+    // Main body - oval fish shape
     ctx.beginPath()
-    ctx.moveTo(s * 0.5, 0) // Nose
+    // Start at nose (right side)
+    ctx.moveTo(w * 0.4, 0)
+    // Top curve from nose to back
     ctx.bezierCurveTo(
-      s * 0.45, -s * 0.18, // Control 1
-      s * 0.2, -s * 0.25,  // Control 2
-      -s * 0.1, -s * 0.2   // End top curve
+      w * 0.35, -h * 0.45,
+      -w * 0.1, -h * 0.5,
+      -w * 0.3, 0
     )
+    // Bottom curve from back to nose
     ctx.bezierCurveTo(
-      -s * 0.25, -s * 0.15,
-      -s * 0.35, -s * 0.08,
-      -s * 0.4, 0 // Back middle
-    )
-    ctx.bezierCurveTo(
-      -s * 0.35, s * 0.08,
-      -s * 0.25, s * 0.15,
-      -s * 0.1, s * 0.2  // End bottom curve
-    )
-    ctx.bezierCurveTo(
-      s * 0.2, s * 0.25,
-      s * 0.45, s * 0.18,
-      s * 0.5, 0 // Back to nose
+      -w * 0.1, h * 0.5,
+      w * 0.35, h * 0.45,
+      w * 0.4, 0
     )
     ctx.fillStyle = bodyColor
     ctx.fill()
@@ -210,12 +204,12 @@ export function AnimatedBackground() {
     ctx.lineWidth = 1.5
     ctx.stroke()
     
-    // Tail fin
+    // Tail fin - forked tail
     ctx.beginPath()
-    ctx.moveTo(-s * 0.35, 0)
-    ctx.lineTo(-s * 0.6, -s * 0.2)
-    ctx.quadraticCurveTo(-s * 0.65, 0, -s * 0.6, s * 0.2)
-    ctx.lineTo(-s * 0.35, 0)
+    ctx.moveTo(-w * 0.25, 0)
+    ctx.lineTo(-w * 0.5, -h * 0.4)
+    ctx.quadraticCurveTo(-w * 0.42, 0, -w * 0.5, h * 0.4)
+    ctx.closePath()
     ctx.fillStyle = finColor
     ctx.fill()
     ctx.strokeStyle = outlineColor
@@ -224,31 +218,31 @@ export function AnimatedBackground() {
     
     // Dorsal fin (top)
     ctx.beginPath()
-    ctx.moveTo(s * 0.05, -s * 0.2)
-    ctx.quadraticCurveTo(s * 0.0, -s * 0.38, -s * 0.15, -s * 0.22)
-    ctx.lineTo(s * 0.05, -s * 0.2)
+    ctx.moveTo(w * 0.1, -h * 0.35)
+    ctx.quadraticCurveTo(-w * 0.05, -h * 0.65, -w * 0.15, -h * 0.38)
+    ctx.lineTo(w * 0.1, -h * 0.35)
     ctx.fillStyle = finColor
     ctx.fill()
     ctx.stroke()
     
     // Pectoral fin (side)
     ctx.beginPath()
-    ctx.moveTo(s * 0.15, s * 0.08)
-    ctx.quadraticCurveTo(s * 0.25, s * 0.22, s * 0.05, s * 0.2)
-    ctx.lineTo(s * 0.15, s * 0.08)
+    ctx.moveTo(w * 0.1, h * 0.15)
+    ctx.quadraticCurveTo(w * 0.15, h * 0.45, -w * 0.05, h * 0.35)
+    ctx.lineTo(w * 0.1, h * 0.15)
     ctx.fillStyle = finColor
     ctx.fill()
     ctx.stroke()
     
     // Eye
     ctx.beginPath()
-    ctx.arc(s * 0.32, -s * 0.04, s * 0.055, 0, Math.PI * 2)
+    ctx.arc(w * 0.22, -h * 0.08, w * 0.06, 0, Math.PI * 2)
     ctx.fillStyle = "#1f2937"
     ctx.fill()
     
     // Eye highlight
     ctx.beginPath()
-    ctx.arc(s * 0.34, -s * 0.055, s * 0.02, 0, Math.PI * 2)
+    ctx.arc(w * 0.24, -h * 0.12, w * 0.02, 0, Math.PI * 2)
     ctx.fillStyle = "#ffffff"
     ctx.fill()
     
@@ -549,13 +543,13 @@ export function AnimatedBackground() {
     window.addEventListener("resize", resizeCanvas)
     window.addEventListener("scroll", getButtonTargets)
 
-    // Initialize entities
-    for (let i = 0; i < 10; i++) {
+    // Initialize entities - fewer for less clutter
+    for (let i = 0; i < 6; i++) {
       entitiesRef.current.push(createEntity(canvas.width, canvas.height, false))
     }
     
-    // Initialize matrix columns
-    for (let i = 0; i < 40; i++) {
+    // Initialize matrix columns - sparse for subtle effect
+    for (let i = 0; i < 18; i++) {
       matrixColumnsRef.current.push(createMatrixColumn(canvas.width, canvas.height))
     }
 
