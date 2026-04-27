@@ -14,28 +14,25 @@ interface Fish {
   isCodeFish: boolean
   codeChars: string[]
   alive: boolean
-  fishType: "small" | "shark" | "code" | "angler"
+  fishType: "shark" | "code" | "angler"
   // Anglerfish specific
   dartTimer?: number
   isDarting?: boolean
   dartDirection?: number
   lureGlow?: number
-  // Schooling behavior
-  schoolId?: number
-  targetX?: number
-  targetY?: number
-  // Dissolve into matrix effect
-  dissolving?: boolean
-  dissolveProgress?: number
-  dissolveChars?: { char: string; x: number; y: number; vy: number; opacity: number }[]
 }
 
-interface MatrixDrop {
+interface Meteor {
   x: number
   y: number
-  chars: { char: string; opacity: number }[]
-  speed: number
+  vx: number
+  vy: number
+  size: number
+  opacity: number
+  tailLength: number
+  hue: number // For slight color variation
   life: number
+  maxLife: number
 }
 
 interface NumberSplash {
@@ -75,7 +72,7 @@ export function PondEcosystem() {
   const fishRef = useRef<Fish[]>([])
   const splashesRef = useRef<NumberSplash[]>([])
   const ripplesRef = useRef<Ripple[]>([])
-  const matrixDropsRef = useRef<MatrixDrop[]>([])
+  const meteorsRef = useRef<Meteor[]>([])
   const timeRef = useRef(0)
   const buttonPosRef = useRef({ x: 0, y: 0 })
   const dimensionsRef = useRef({ width: 0, height: 0 })
@@ -143,7 +140,7 @@ export function PondEcosystem() {
       
       fishRef.current = []
 
-      // Initialize fish: 3 sharks, schools of small fish, 2 code fish, 1 anglerfish
+      // Initialize fish: 3 sharks, 2 code fish, 1 anglerfish
       
       // Sharks - big, faster, can swim off screen and wrap around
       for (let i = 0; i < 3; i++) {
@@ -162,38 +159,6 @@ export function PondEcosystem() {
           alive: true,
           fishType: "shark"
         })
-      }
-      
-      // Schools of small fish - 3 schools with 10-15 fish each, slower and more wavy
-      for (let school = 0; school < 3; school++) {
-        const schoolCenterX = 200 + Math.random() * (w - 400)
-        const schoolCenterY = 150 + Math.random() * (h - 300)
-        const schoolDirection = Math.random() > 0.5 ? 1 : -1
-        const schoolSpeed = 0.8 + Math.random() * 0.5 // Half speed
-        const fishCount = 10 + Math.floor(Math.random() * 6)
-        
-        for (let i = 0; i < fishCount; i++) {
-          fishRef.current.push({
-            x: schoolCenterX + (Math.random() - 0.5) * 100,
-            y: schoolCenterY + (Math.random() - 0.5) * 80,
-            vx: schoolDirection * schoolSpeed + (Math.random() - 0.5) * 0.3,
-            vy: (Math.random() - 0.5) * 0.4,
-            size: 16 + Math.random() * 10,
-            phase: Math.random() * Math.PI * 2,
-            transformTimer: 600 + Math.random() * 400, // Will trigger dissolve
-            opacity: 0.28 + Math.random() * 0.1,
-            isCodeFish: false,
-            codeChars: [],
-            alive: true,
-            fishType: "small",
-            schoolId: school,
-            targetX: schoolCenterX,
-            targetY: schoolCenterY,
-            dissolving: false,
-            dissolveProgress: 0,
-            dissolveChars: []
-          })
-        }
       }
       
       // Code fish - never explode, just swim faster
@@ -512,57 +477,6 @@ export function PondEcosystem() {
         ctx.restore()
 
         ctx.restore()
-      } else {
-        // Small regular fish - more wavy and lifelike
-        ctx.save()
-        ctx.translate(fish.x, fish.y)
-        ctx.scale(fish.vx > 0 ? 1 : -1, 1)
-
-        // More pronounced body wave
-        const bodyWave = Math.sin(fish.phase * 2 + time * 0.015) * 0.2
-        const verticalBob = Math.sin(fish.phase + time * 0.008) * fish.size * 0.08
-        ctx.translate(0, verticalBob)
-        ctx.rotate(bodyWave)
-
-        ctx.globalAlpha = fish.opacity
-        ctx.fillStyle = "#ffffff"
-
-        // Slightly curved body using bezier
-        ctx.beginPath()
-        const bodyStretch = 1 + Math.sin(fish.phase + time * 0.01) * 0.05
-        ctx.ellipse(0, 0, fish.size * bodyStretch, fish.size * 0.38, 0, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Animated tail with more wave
-        const tailWave = Math.sin(fish.phase * 2.5 + time * 0.02) * 0.5
-        ctx.save()
-        ctx.translate(-fish.size * bodyStretch, 0)
-        ctx.rotate(tailWave)
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.quadraticCurveTo(-fish.size * 0.3, -fish.size * 0.2, -fish.size * 0.55, -fish.size * 0.4)
-        ctx.lineTo(-fish.size * 0.45, 0)
-        ctx.lineTo(-fish.size * 0.55, fish.size * 0.4)
-        ctx.quadraticCurveTo(-fish.size * 0.3, fish.size * 0.2, 0, 0)
-        ctx.closePath()
-        ctx.fill()
-        ctx.restore()
-
-        // Small dorsal fin
-        ctx.globalAlpha = fish.opacity * 0.8
-        ctx.beginPath()
-        ctx.moveTo(fish.size * 0.1, -fish.size * 0.35)
-        ctx.quadraticCurveTo(0, -fish.size * 0.5, -fish.size * 0.15, -fish.size * 0.35)
-        ctx.closePath()
-        ctx.fill()
-
-        // Eye
-        ctx.globalAlpha = fish.opacity * 1.5
-        ctx.beginPath()
-        ctx.arc(fish.size * 0.5, -fish.size * 0.08, fish.size * 0.1, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.restore()
       }
     }
 
@@ -573,6 +487,86 @@ export function PondEcosystem() {
       const { width: w, height: h } = dimensionsRef.current
 
       ctx.clearRect(0, 0, w, h)
+
+      // Spawn new meteors randomly
+      if (Math.random() > 0.985) {
+        const startSide = Math.random() > 0.5 // true = left, false = top
+        const speed = 8 + Math.random() * 12
+        const angle = startSide 
+          ? -Math.PI / 6 + Math.random() * Math.PI / 4 // Coming from left, going down-right
+          : Math.PI / 3 + Math.random() * Math.PI / 4 // Coming from top, going down
+        
+        meteorsRef.current.push({
+          x: startSide ? -50 : Math.random() * w,
+          y: startSide ? Math.random() * h * 0.6 : -50,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          size: 3 + Math.random() * 4,
+          opacity: 0.7 + Math.random() * 0.3,
+          tailLength: 80 + Math.random() * 120,
+          hue: Math.random() * 60 - 30, // Slight color variation around white
+          life: 0,
+          maxLife: 200 + Math.random() * 100
+        })
+      }
+
+      // Draw and update meteors
+      meteorsRef.current = meteorsRef.current.filter(meteor => {
+        meteor.x += meteor.vx
+        meteor.y += meteor.vy
+        meteor.life++
+        
+        // Fade in at start, fade out at end
+        let alpha = meteor.opacity
+        if (meteor.life < 10) {
+          alpha = meteor.opacity * (meteor.life / 10)
+        } else if (meteor.life > meteor.maxLife - 30) {
+          alpha = meteor.opacity * ((meteor.maxLife - meteor.life) / 30)
+        }
+        
+        // Draw meteor tail (gradient line)
+        const tailX = meteor.x - (meteor.vx / Math.sqrt(meteor.vx * meteor.vx + meteor.vy * meteor.vy)) * meteor.tailLength
+        const tailY = meteor.y - (meteor.vy / Math.sqrt(meteor.vx * meteor.vx + meteor.vy * meteor.vy)) * meteor.tailLength
+        
+        const gradient = ctx.createLinearGradient(tailX, tailY, meteor.x, meteor.y)
+        gradient.addColorStop(0, `rgba(255, 255, 255, 0)`)
+        gradient.addColorStop(0.5, `rgba(255, ${255 + meteor.hue}, ${220 + meteor.hue}, ${alpha * 0.3})`)
+        gradient.addColorStop(0.85, `rgba(255, ${255 + meteor.hue}, ${230 + meteor.hue}, ${alpha * 0.7})`)
+        gradient.addColorStop(1, `rgba(255, 255, 255, ${alpha})`)
+        
+        ctx.strokeStyle = gradient
+        ctx.lineWidth = meteor.size * 0.8
+        ctx.lineCap = "round"
+        ctx.beginPath()
+        ctx.moveTo(tailX, tailY)
+        ctx.lineTo(meteor.x, meteor.y)
+        ctx.stroke()
+        
+        // Draw bright head
+        const headGradient = ctx.createRadialGradient(meteor.x, meteor.y, 0, meteor.x, meteor.y, meteor.size * 3)
+        headGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`)
+        headGradient.addColorStop(0.3, `rgba(200, 220, 255, ${alpha * 0.6})`)
+        headGradient.addColorStop(0.6, `rgba(150, 180, 255, ${alpha * 0.3})`)
+        headGradient.addColorStop(1, `rgba(100, 150, 255, 0)`)
+        
+        ctx.fillStyle = headGradient
+        ctx.beginPath()
+        ctx.arc(meteor.x, meteor.y, meteor.size * 3, 0, Math.PI * 2)
+        ctx.fill()
+        
+        // Bright core
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`
+        ctx.beginPath()
+        ctx.arc(meteor.x, meteor.y, meteor.size * 0.8, 0, Math.PI * 2)
+        ctx.fill()
+        
+        // Remove if off screen or expired
+        return meteor.life < meteor.maxLife && 
+               meteor.x < w + 100 && 
+               meteor.y < h + 100 &&
+               meteor.x > -200 &&
+               meteor.y > -200
+      })
 
       // Draw ripples
       ripplesRef.current = ripplesRef.current.filter(ripple => {
@@ -701,182 +695,7 @@ export function PondEcosystem() {
               fish.transformTimer = 3400 + Math.random() * 400
             }
           }
-        } else if (fish.fishType === "small") {
-          // Check if fish is dissolving into matrix code
-          if (fish.dissolving) {
-            fish.dissolveProgress = (fish.dissolveProgress || 0) + 0.015
-            
-            // Update dissolve characters falling down like matrix rain
-            if (fish.dissolveChars) {
-              fish.dissolveChars.forEach(dc => {
-                dc.y += dc.vy
-                dc.vy += 0.08 // gravity
-                dc.opacity -= 0.012
-              })
-              fish.dissolveChars = fish.dissolveChars.filter(dc => dc.opacity > 0)
-            }
-            
-            // Draw dissolving fish - parts turn into falling code
-            if (fish.dissolveProgress < 1) {
-              ctx.save()
-              ctx.translate(fish.x, fish.y)
-              ctx.scale(fish.vx > 0 ? 1 : -1, 1)
-              
-              // Fish body fading out from top to bottom
-              const fadeY = fish.size * (fish.dissolveProgress * 2 - 1)
-              ctx.globalAlpha = fish.opacity * (1 - fish.dissolveProgress * 0.8)
-              ctx.fillStyle = "#ffffff"
-              
-              ctx.beginPath()
-              ctx.ellipse(0, 0, fish.size * (1 - fish.dissolveProgress * 0.3), fish.size * 0.4 * (1 - fish.dissolveProgress * 0.5), 0, 0, Math.PI * 2)
-              ctx.fill()
-              
-              ctx.restore()
-              
-              // Spawn new matrix characters from the fish
-              if (Math.random() > 0.7 && fish.dissolveChars) {
-                const matrixChars = "01{}[]<>/=;:$¥€£"
-                fish.dissolveChars.push({
-                  char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
-                  x: fish.x + (Math.random() - 0.5) * fish.size * 1.5,
-                  y: fish.y + (Math.random() - 0.5) * fish.size * 0.5,
-                  vy: 0.5 + Math.random() * 1,
-                  opacity: 0.6 + Math.random() * 0.3
-                })
-              }
-            }
-            
-            // Draw falling matrix characters
-            if (fish.dissolveChars) {
-              ctx.font = `${fish.size * 0.5}px "IBM Plex Mono", monospace`
-              ctx.textAlign = "center"
-              fish.dissolveChars.forEach(dc => {
-                ctx.globalAlpha = dc.opacity
-                ctx.fillStyle = `rgba(100, 255, 150, ${dc.opacity})`
-                ctx.fillText(dc.char, dc.x, dc.y)
-              })
-            }
-            
-            // Fish fully dissolved - respawn it
-            if (fish.dissolveProgress >= 1 && (!fish.dissolveChars || fish.dissolveChars.length === 0)) {
-              fish.dissolving = false
-              fish.dissolveProgress = 0
-              fish.dissolveChars = []
-              // Respawn at edge of screen
-              const spawnSide = Math.random() > 0.5
-              fish.x = spawnSide ? -fish.size * 2 : w + fish.size * 2
-              fish.y = 100 + Math.random() * (h - 200)
-              fish.vx = spawnSide ? Math.abs(fish.vx) : -Math.abs(fish.vx)
-              fish.transformTimer = 800 + Math.random() * 600
-              fish.opacity = 0.28 + Math.random() * 0.1
-            }
-            
-            return // Skip normal fish drawing/movement while dissolving
-          }
-          
-          // Schooling fish behavior - slower and more wavy
-          const schoolmates = fishRef.current.filter(f => f.fishType === "small" && f.schoolId === fish.schoolId && f !== fish && !f.dissolving)
-          
-          // Calculate school center
-          let avgX = fish.x
-          let avgY = fish.y
-          let avgVx = fish.vx
-          let avgVy = fish.vy
-          
-          schoolmates.forEach(mate => {
-            avgX += mate.x
-            avgY += mate.y
-            avgVx += mate.vx
-            avgVy += mate.vy
-          })
-          
-          const count = schoolmates.length + 1
-          avgX /= count
-          avgY /= count
-          avgVx /= count
-          avgVy /= count
-          
-          // Add wavy sinusoidal motion
-          const waveFreq = 0.02
-          const waveAmp = 0.3
-          fish.vy += Math.sin(time * waveFreq + fish.phase) * waveAmp * 0.05
-          
-          // Cohesion - move toward school center (gentler)
-          fish.vx += (avgX - fish.x) * 0.001
-          fish.vy += (avgY - fish.y) * 0.001
-          
-          // Alignment - match school velocity (gentler)
-          fish.vx += (avgVx - fish.vx) * 0.01
-          fish.vy += (avgVy - fish.vy) * 0.01
-          
-          // Separation - avoid getting too close
-          schoolmates.forEach(mate => {
-            const dx = fish.x - mate.x
-            const dy = fish.y - mate.y
-            const dist = Math.sqrt(dx * dx + dy * dy)
-            if (dist < 35 && dist > 0) {
-              fish.vx += (dx / dist) * 0.05
-              fish.vy += (dy / dist) * 0.05
-            }
-          })
-          
-          // Speed limit - slower
-          const speed = Math.sqrt(fish.vx * fish.vx + fish.vy * fish.vy)
-          const maxSpeed = 1.8
-          const minSpeed = 0.6
-          if (speed > maxSpeed) {
-            fish.vx = (fish.vx / speed) * maxSpeed
-            fish.vy = (fish.vy / speed) * maxSpeed
-          }
-          if (speed < minSpeed && speed > 0) {
-            fish.vx = (fish.vx / speed) * minSpeed
-            fish.vy = (fish.vy / speed) * minSpeed
-          }
-          
-          fish.x += fish.vx
-          fish.y += fish.vy
-          fish.phase += 0.04 // Slower phase for smoother movement
-          
-          // Wrap around screen
-          if (fish.x > w + fish.size * 2) fish.x = -fish.size * 2
-          if (fish.x < -fish.size * 2) fish.x = w + fish.size * 2
-          
-          // Wavy vertical bounds
-          const waveOffset = Math.sin(time * 0.01 + fish.schoolId! * 2) * 50
-          if (fish.y < 80 + waveOffset) fish.vy = Math.abs(fish.vy) * 0.5
-          if (fish.y > h - 80 + waveOffset) fish.vy = -Math.abs(fish.vy) * 0.5
-          
-          // Random gentle school direction changes
-          if (Math.random() > 0.999 && fish.schoolId !== undefined) {
-            const newDirection = Math.random() > 0.5 ? 1 : -1
-            fishRef.current.filter(f => f.schoolId === fish.schoolId && !f.dissolving).forEach(f => {
-              f.vx = newDirection * (0.8 + Math.random() * 0.5)
-            })
-          }
-          
-          // Transform timer - triggers dissolve instead of splash
-          if (fish.transformTimer > 0) {
-            fish.transformTimer--
-            if (fish.transformTimer === 0) {
-              // Start dissolving into matrix code
-              fish.dissolving = true
-              fish.dissolveProgress = 0
-              fish.dissolveChars = []
-              
-              // Create initial burst of matrix characters
-              const matrixChars = "01{}[]<>/=;:$¥€£"
-              for (let i = 0; i < 12; i++) {
-                fish.dissolveChars.push({
-                  char: matrixChars[Math.floor(Math.random() * matrixChars.length)],
-                  x: fish.x + (Math.random() - 0.5) * fish.size,
-                  y: fish.y + (Math.random() - 0.5) * fish.size * 0.5,
-                  vy: 0.3 + Math.random() * 0.8,
-                  opacity: 0.7 + Math.random() * 0.3
-                })
-              }
-            }
-          }
-        } else {
+        } else if (fish.fishType === "code") {
           // Code fish - swim steadily, wrap around
           fish.x += fish.vx
           fish.y += fish.vy
