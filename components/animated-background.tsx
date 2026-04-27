@@ -60,15 +60,17 @@ export function AnimatedBackground() {
   const meltingEntitiesRef = useRef<MeltingEntity[]>([])
   const animationFrameRef = useRef<number>(0)
   const lastMeltRef = useRef<number>(0)
+  const moonVisibleRef = useRef<boolean>(true)
+  const lastMoonToggleRef = useRef<number>(0)
 
   const createMatrixNumber = useCallback((width: number, height: number): MatrixNumber => {
     return {
       x: Math.random() * width,
       y: Math.random() * height,
       value: String(Math.floor(Math.random() * 10)),
-      opacity: 0.15 + Math.random() * 0.35,
-      speed: 0.3 + Math.random() * 0.5,
-      size: 14 + Math.random() * 10,
+      opacity: 0.08 + Math.random() * 0.15, // More subtle
+      speed: 0.2 + Math.random() * 0.3, // Slower, more peaceful
+      size: 12 + Math.random() * 8,
     }
   }, [])
 
@@ -108,12 +110,12 @@ export function AnimatedBackground() {
             vy = -(2 + Math.random() * 2)
         }
       } else {
-        // Fish only swim horizontally
+        // Fish only swim horizontally - peaceful, slow swimming
         const fromLeft = Math.random() > 0.5
         x = fromLeft ? -200 : width + 200
         y = 100 + Math.random() * (height - 200)
-        vx = fromLeft ? (0.5 + Math.random() * 0.8) : -(0.5 + Math.random() * 0.8)
-        vy = (Math.random() - 0.5) * 0.15
+        vx = fromLeft ? (0.3 + Math.random() * 0.5) : -(0.3 + Math.random() * 0.5)
+        vy = (Math.random() - 0.5) * 0.1
       }
     } else {
       x = Math.random() * width
@@ -137,21 +139,21 @@ export function AnimatedBackground() {
     }
   }, [])
 
-  // Create melting effect - fish slowly dissolves into falling code
+  // Create melting effect - fish slowly dissolves into falling code (subtle)
   const createMeltEffect = useCallback((entity: Entity, time: number) => {
     const particles: MeltParticle[] = []
-    const particleCount = 20
-    const spread = entity.size * 0.8
+    const particleCount = 12 // Fewer particles for subtle effect
+    const spread = entity.size * 0.6
     
     for (let i = 0; i < particleCount; i++) {
       particles.push({
         x: entity.x + (Math.random() - 0.5) * spread,
-        y: entity.y + (Math.random() - 0.5) * spread * 0.6,
-        vy: 0.5 + Math.random() * 1.5,
+        y: entity.y + (Math.random() - 0.5) * spread * 0.5,
+        vy: 0.4 + Math.random() * 0.8, // Slower falling
         value: String(Math.floor(Math.random() * 10)),
         opacity: 0,
-        delay: i * 80 + Math.random() * 200, // Staggered appearance
-        size: 12 + Math.random() * 8,
+        delay: i * 120 + Math.random() * 300, // More staggered, gentler
+        size: 10 + Math.random() * 6,
       })
     }
     
@@ -632,18 +634,63 @@ export function AnimatedBackground() {
     resizeCanvas()
     window.addEventListener("resize", resizeCanvas)
 
-    // Initialize more fish entities - 12 total
-    for (let i = 0; i < 12; i++) {
+    // Initialize fish entities - 8 total for a tranquil pond
+    for (let i = 0; i < 8; i++) {
       entitiesRef.current.push(createEntity(canvas.width, canvas.height, false))
     }
 
-    // Initialize sparse matrix numbers - fewer for cleaner look
-    for (let i = 0; i < 20; i++) {
+    // Initialize sparse matrix numbers - very few for subtle effect
+    for (let i = 0; i < 10; i++) {
       matrixNumbersRef.current.push(createMatrixNumber(canvas.width, canvas.height))
     }
 
     const animate = (time: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // Toggle moon visibility every 50 seconds
+      if (time - lastMoonToggleRef.current > 50000) {
+        moonVisibleRef.current = !moonVisibleRef.current
+        lastMoonToggleRef.current = time
+      }
+      
+      // Draw moon in top right corner with gentle glow
+      if (moonVisibleRef.current) {
+        const moonX = canvas.width - 80
+        const moonY = 80
+        const moonRadius = 35
+        
+        // Moon glow
+        const gradient = ctx.createRadialGradient(moonX, moonY, moonRadius * 0.5, moonX, moonY, moonRadius * 2.5)
+        gradient.addColorStop(0, "rgba(255, 255, 255, 0.15)")
+        gradient.addColorStop(0.5, "rgba(200, 210, 220, 0.08)")
+        gradient.addColorStop(1, "rgba(200, 210, 220, 0)")
+        ctx.beginPath()
+        ctx.arc(moonX, moonY, moonRadius * 2.5, 0, Math.PI * 2)
+        ctx.fillStyle = gradient
+        ctx.fill()
+        
+        // Moon body
+        ctx.beginPath()
+        ctx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2)
+        ctx.fillStyle = "#e8eaed"
+        ctx.globalAlpha = 0.9
+        ctx.fill()
+        
+        // Moon craters (subtle)
+        ctx.globalAlpha = 0.15
+        ctx.fillStyle = "#9ca3af"
+        ctx.beginPath()
+        ctx.arc(moonX - 10, moonY - 8, 6, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(moonX + 8, moonY + 5, 4, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(moonX - 5, moonY + 12, 5, 0, Math.PI * 2)
+        ctx.fill()
+        
+        ctx.globalAlpha = 1
+      }
       
       // Draw matrix numbers with glow
       ctx.font = "bold 18px monospace"
