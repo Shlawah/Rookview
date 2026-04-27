@@ -14,7 +14,12 @@ interface Fish {
   isCodeFish: boolean
   codeChars: string[]
   alive: boolean
-  fishType: "small" | "shark" | "code"
+  fishType: "small" | "shark" | "code" | "angler"
+  // Anglerfish specific
+  dartTimer?: number
+  isDarting?: boolean
+  dartDirection?: number
+  lureGlow?: number
 }
 
 interface NumberSplash {
@@ -176,6 +181,26 @@ export function PondEcosystem() {
           fishType: "code"
         })
       }
+
+      // Anglerfish - huge, scary, darts across screen
+      fishRef.current.push({
+        x: -200, // Start off-screen
+        y: h * 0.3 + Math.random() * (h * 0.4),
+        vx: 0.3,
+        vy: 0,
+        size: 150 + Math.random() * 50,
+        phase: Math.random() * Math.PI * 2,
+        transformTimer: 2000 + Math.random() * 500,
+        opacity: 0.35,
+        isCodeFish: false,
+        codeChars: [],
+        alive: true,
+        fishType: "angler",
+        dartTimer: 180 + Math.random() * 120,
+        isDarting: false,
+        dartDirection: 1,
+        lureGlow: 0
+      })
     }
 
     resize()
@@ -310,6 +335,150 @@ export function PondEcosystem() {
         }
 
         ctx.restore()
+      } else if (fish.fishType === "angler") {
+        // Scary anglerfish
+        ctx.save()
+        ctx.translate(fish.x, fish.y)
+        ctx.scale(fish.vx > 0 ? 1 : -1, 1)
+
+        const wave = Math.sin(fish.phase + time * 0.003) * 0.05
+        ctx.rotate(wave)
+
+        ctx.globalAlpha = fish.opacity
+        ctx.fillStyle = "#ffffff"
+
+        // Bulbous, ugly body
+        ctx.beginPath()
+        ctx.moveTo(fish.size * 0.8, 0)
+        ctx.quadraticCurveTo(fish.size * 0.6, -fish.size * 0.5, 0, -fish.size * 0.45)
+        ctx.quadraticCurveTo(-fish.size * 0.5, -fish.size * 0.4, -fish.size * 0.7, -fish.size * 0.15)
+        ctx.lineTo(-fish.size, 0)
+        ctx.quadraticCurveTo(-fish.size * 0.7, fish.size * 0.3, -fish.size * 0.3, fish.size * 0.4)
+        ctx.quadraticCurveTo(fish.size * 0.3, fish.size * 0.5, fish.size * 0.8, 0)
+        ctx.fill()
+
+        // Huge scary mouth
+        ctx.globalAlpha = fish.opacity * 0.3
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.moveTo(fish.size * 0.85, fish.size * 0.05)
+        ctx.quadraticCurveTo(fish.size * 0.5, fish.size * 0.35, fish.size * 0.1, fish.size * 0.25)
+        ctx.quadraticCurveTo(fish.size * 0.4, fish.size * 0.1, fish.size * 0.85, fish.size * 0.05)
+        ctx.fill()
+
+        // Sharp teeth
+        ctx.globalAlpha = fish.opacity * 1.2
+        ctx.fillStyle = "#ffffff"
+        const teethCount = 8
+        for (let i = 0; i < teethCount; i++) {
+          const t = i / (teethCount - 1)
+          const tx = fish.size * 0.8 - t * fish.size * 0.65
+          const ty = fish.size * 0.08 + Math.sin(t * Math.PI) * fish.size * 0.15
+          const toothSize = fish.size * 0.08 * (1 - t * 0.3)
+          
+          ctx.beginPath()
+          ctx.moveTo(tx - toothSize * 0.3, ty)
+          ctx.lineTo(tx, ty + toothSize)
+          ctx.lineTo(tx + toothSize * 0.3, ty)
+          ctx.closePath()
+          ctx.fill()
+        }
+        // Bottom teeth
+        for (let i = 0; i < teethCount - 2; i++) {
+          const t = (i + 0.5) / (teethCount - 1)
+          const tx = fish.size * 0.75 - t * fish.size * 0.55
+          const ty = fish.size * 0.22 + Math.sin(t * Math.PI) * fish.size * 0.08
+          const toothSize = fish.size * 0.06 * (1 - t * 0.3)
+          
+          ctx.beginPath()
+          ctx.moveTo(tx - toothSize * 0.3, ty)
+          ctx.lineTo(tx, ty - toothSize)
+          ctx.lineTo(tx + toothSize * 0.3, ty)
+          ctx.closePath()
+          ctx.fill()
+        }
+
+        // Creepy small eye
+        ctx.globalAlpha = fish.opacity * 2
+        ctx.beginPath()
+        ctx.arc(fish.size * 0.3, -fish.size * 0.2, fish.size * 0.06, 0, Math.PI * 2)
+        ctx.fill()
+        
+        // Pupil
+        ctx.globalAlpha = fish.opacity * 0.5
+        ctx.fillStyle = "#000000"
+        ctx.beginPath()
+        ctx.arc(fish.size * 0.32, -fish.size * 0.2, fish.size * 0.03, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Bioluminescent lure (esca)
+        const lureX = fish.size * 0.1
+        const lureY = -fish.size * 0.65
+        const glowIntensity = fish.lureGlow || 0.5 + Math.sin(time * 0.05) * 0.3
+        
+        // Illicium (the fishing rod stalk)
+        ctx.globalAlpha = fish.opacity * 0.8
+        ctx.strokeStyle = "#ffffff"
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.moveTo(fish.size * 0.2, -fish.size * 0.4)
+        ctx.quadraticCurveTo(fish.size * 0.3, -fish.size * 0.6, lureX, lureY)
+        ctx.stroke()
+
+        // Glowing lure
+        const glowRadius = fish.size * 0.12
+        const gradient = ctx.createRadialGradient(lureX, lureY, 0, lureX, lureY, glowRadius * 3)
+        gradient.addColorStop(0, `rgba(200, 255, 255, ${glowIntensity})`)
+        gradient.addColorStop(0.3, `rgba(100, 200, 255, ${glowIntensity * 0.6})`)
+        gradient.addColorStop(0.6, `rgba(50, 150, 255, ${glowIntensity * 0.3})`)
+        gradient.addColorStop(1, "rgba(0, 100, 200, 0)")
+        
+        ctx.globalAlpha = 1
+        ctx.fillStyle = gradient
+        ctx.beginPath()
+        ctx.arc(lureX, lureY, glowRadius * 3, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Bright center of lure
+        ctx.globalAlpha = glowIntensity
+        ctx.fillStyle = "#ffffff"
+        ctx.beginPath()
+        ctx.arc(lureX, lureY, glowRadius * 0.5, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Spiny fins
+        ctx.globalAlpha = fish.opacity * 0.7
+        ctx.fillStyle = "#ffffff"
+        for (let i = 0; i < 5; i++) {
+          const spineX = -fish.size * 0.2 - i * fish.size * 0.12
+          const spineHeight = fish.size * 0.2 * (1 - i * 0.1)
+          ctx.beginPath()
+          ctx.moveTo(spineX - fish.size * 0.03, -fish.size * 0.35)
+          ctx.lineTo(spineX, -fish.size * 0.35 - spineHeight)
+          ctx.lineTo(spineX + fish.size * 0.03, -fish.size * 0.35)
+          ctx.closePath()
+          ctx.fill()
+        }
+
+        // Ragged tail
+        const tailWave = Math.sin(fish.phase + time * 0.006) * 0.2
+        ctx.save()
+        ctx.translate(-fish.size, 0)
+        ctx.rotate(tailWave)
+        ctx.globalAlpha = fish.opacity * 0.8
+        ctx.beginPath()
+        ctx.moveTo(0, -fish.size * 0.1)
+        ctx.lineTo(-fish.size * 0.4, -fish.size * 0.35)
+        ctx.lineTo(-fish.size * 0.3, -fish.size * 0.15)
+        ctx.lineTo(-fish.size * 0.5, 0)
+        ctx.lineTo(-fish.size * 0.3, fish.size * 0.15)
+        ctx.lineTo(-fish.size * 0.4, fish.size * 0.3)
+        ctx.lineTo(0, fish.size * 0.1)
+        ctx.closePath()
+        ctx.fill()
+        ctx.restore()
+
+        ctx.restore()
       } else {
         // Small regular fish
         ctx.save()
@@ -386,38 +555,103 @@ export function PondEcosystem() {
       fishRef.current.forEach((fish) => {
         if (!fish.alive) return
 
-        fish.x += fish.vx
-        fish.y += fish.vy
-        fish.phase += 0.05
-
-        // Bounce off edges
-        if (fish.x < 80 || fish.x > w - 80) fish.vx *= -1
-        if (fish.y < 50 || fish.y > h - 50) fish.vy *= -1
-
-        // Random direction changes
-        if (Math.random() > 0.995) {
-          if (fish.fishType === "shark") {
-            fish.vx += (Math.random() - 0.5) * 0.08
-            fish.vy += (Math.random() - 0.5) * 0.04
-            fish.vx = Math.max(-0.3, Math.min(0.3, fish.vx))
-            fish.vy = Math.max(-0.1, Math.min(0.1, fish.vy))
+        // Special anglerfish behavior - darting
+        if (fish.fishType === "angler") {
+          fish.dartTimer = (fish.dartTimer || 0) - 1
+          
+          // Update lure glow
+          fish.lureGlow = 0.5 + Math.sin(time * 0.05) * 0.3 + (fish.isDarting ? 0.3 : 0)
+          
+          if (fish.isDarting) {
+            // Darting across screen at high speed
+            fish.x += fish.vx * 8
+            fish.y += fish.vy * 2
+            
+            // Check if reached edge or dart time expired
+            if (fish.x > w + fish.size * 2 || fish.x < -fish.size * 2 || fish.dartTimer! < -60) {
+              fish.isDarting = false
+              fish.dartTimer = 300 + Math.random() * 200 // Wait before next dart
+              
+              // Reposition off screen on opposite side
+              fish.dartDirection = fish.dartDirection === 1 ? -1 : 1
+              fish.x = fish.dartDirection === 1 ? -fish.size * 1.5 : w + fish.size * 1.5
+              fish.y = h * 0.2 + Math.random() * (h * 0.6)
+              fish.vx = fish.dartDirection * 0.3
+              fish.vy = (Math.random() - 0.5) * 0.1
+            }
           } else {
-            fish.vx += (Math.random() - 0.5) * 0.2
-            fish.vy += (Math.random() - 0.5) * 0.1
-            fish.vx = Math.max(-0.7, Math.min(0.7, fish.vx))
-            fish.vy = Math.max(-0.25, Math.min(0.25, fish.vy))
+            // Slow lurking movement
+            fish.x += fish.vx * 0.5
+            fish.y += fish.vy * 0.5
+            
+            // Random subtle movements
+            if (Math.random() > 0.98) {
+              fish.vy += (Math.random() - 0.5) * 0.05
+              fish.vy = Math.max(-0.15, Math.min(0.15, fish.vy))
+            }
+            
+            // Keep in bounds while lurking
+            if (fish.y < h * 0.15) fish.vy = Math.abs(fish.vy)
+            if (fish.y > h * 0.85) fish.vy = -Math.abs(fish.vy)
+            
+            // Start darting when timer expires
+            if (fish.dartTimer! <= 0) {
+              fish.isDarting = true
+              fish.dartTimer = 0
+              // Set dart direction and speed
+              fish.vx = fish.dartDirection! * (3 + Math.random() * 2)
+              fish.vy = (Math.random() - 0.5) * 0.8
+              
+              // Create ripple when darting starts
+              createRipple(fish.x, fish.y, 100)
+            }
           }
-        }
+          
+          fish.phase += 0.03
+          
+          // Transform timer (splash) for anglerfish
+          if (fish.transformTimer > 0) {
+            fish.transformTimer--
+            if (fish.transformTimer === 0) {
+              createSplash(fish.x, fish.y, true) // Big splash like shark
+              fish.transformTimer = 2000 + Math.random() * 500
+            }
+          }
+        } else {
+          // Normal fish movement
+          fish.x += fish.vx
+          fish.y += fish.vy
+          fish.phase += 0.05
 
-        // Transform timer (splash)
-        if (!fish.isCodeFish && fish.transformTimer > 0) {
-          fish.transformTimer--
-          if (fish.transformTimer === 0) {
-            const isShark = fish.fishType === "shark"
-            createSplash(fish.x, fish.y, isShark)
-            fish.transformTimer = isShark 
-              ? 3400 + Math.random() * 400 
-              : 750 + Math.random() * 180
+          // Bounce off edges
+          if (fish.x < 80 || fish.x > w - 80) fish.vx *= -1
+          if (fish.y < 50 || fish.y > h - 50) fish.vy *= -1
+
+          // Random direction changes
+          if (Math.random() > 0.995) {
+            if (fish.fishType === "shark") {
+              fish.vx += (Math.random() - 0.5) * 0.08
+              fish.vy += (Math.random() - 0.5) * 0.04
+              fish.vx = Math.max(-0.3, Math.min(0.3, fish.vx))
+              fish.vy = Math.max(-0.1, Math.min(0.1, fish.vy))
+            } else {
+              fish.vx += (Math.random() - 0.5) * 0.2
+              fish.vy += (Math.random() - 0.5) * 0.1
+              fish.vx = Math.max(-0.7, Math.min(0.7, fish.vx))
+              fish.vy = Math.max(-0.25, Math.min(0.25, fish.vy))
+            }
+          }
+
+          // Transform timer (splash)
+          if (!fish.isCodeFish && fish.transformTimer > 0) {
+            fish.transformTimer--
+            if (fish.transformTimer === 0) {
+              const isShark = fish.fishType === "shark"
+              createSplash(fish.x, fish.y, isShark)
+              fish.transformTimer = isShark 
+                ? 3400 + Math.random() * 400 
+                : 750 + Math.random() * 180
+            }
           }
         }
 
