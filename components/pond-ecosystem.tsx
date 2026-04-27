@@ -51,7 +51,7 @@ export function PondEcosystem() {
     const resize = () => {
       const dpr = window.devicePixelRatio || 1
       const displayWidth = window.innerWidth
-      const displayHeight = document.documentElement.scrollHeight || window.innerHeight * 3
+      const displayHeight = window.innerHeight
       
       dimensionsRef.current = { width: displayWidth, height: displayHeight }
       
@@ -75,11 +75,11 @@ export function PondEcosystem() {
       fishRef.current = {
         x: w * 0.2,
         y: h * 0.3,
-        vx: 0.4,
-        vy: 0.15,
-        size: 120,
+        vx: 0.6,
+        vy: 0.2,
+        size: 150,
         phase: 0,
-        lureGlow: 0.8
+        lureGlow: 0.9
       }
     }
 
@@ -101,6 +101,10 @@ export function PondEcosystem() {
       if (!fish) {
         animationRef.current = requestAnimationFrame(animate)
         return
+      }
+      
+      if (time % 60 === 0) {
+        console.log("[v0] Anglerfish position:", fish.x.toFixed(0), fish.y.toFixed(0), "canvas:", w, h)
       }
 
       // Update fish position - slow patrol
@@ -197,7 +201,7 @@ export function PondEcosystem() {
       const wave = Math.sin(fish.phase + time * 0.003) * 0.05
       ctx.rotate(wave)
 
-      ctx.globalAlpha = 0.35
+      ctx.globalAlpha = 0.5
       ctx.fillStyle = "#ffffff"
 
       // Bulbous body
@@ -220,7 +224,7 @@ export function PondEcosystem() {
       ctx.fill()
 
       // Teeth
-      ctx.globalAlpha = 0.45
+      ctx.globalAlpha = 0.6
       ctx.fillStyle = "#ffffff"
       const teethCount = 8
       for (let i = 0; i < teethCount; i++) {
@@ -323,8 +327,8 @@ export function PondEcosystem() {
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none fixed inset-0 h-full w-full"
-      style={{ background: "#01020A" }}
+      className="pointer-events-none fixed inset-0 z-50"
+      style={{ background: "transparent" }}
     />
   )
 }
