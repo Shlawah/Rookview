@@ -57,7 +57,7 @@ export function AnimatedBackground() {
   }, [])
 
   const createEntity = useCallback((width: number, height: number, fromEdge = true): Entity => {
-    const isChess = Math.random() > 0.6 // 40% fish, 60% chess
+    const isChess = Math.random() > 0.7 // 70% fish, 30% chess
     const type: "fish" | "chess" = isChess ? "chess" : "fish"
     
     let x: number, y: number, vx: number, vy: number
@@ -111,7 +111,7 @@ export function AnimatedBackground() {
       y,
       vx,
       vy,
-      size: isChess ? 90 + Math.random() * 40 : 180 + Math.random() * 80, // Fish are much larger
+      size: isChess ? 70 + Math.random() * 30 : 80 + Math.random() * 40, // Smaller fish, more visible
       type,
       variant: isChess ? Math.floor(Math.random() * 6) : Math.floor(Math.random() * 4),
       opacity: 0.25 + Math.random() * 0.15,
@@ -122,20 +122,20 @@ export function AnimatedBackground() {
   }, [])
 
   const createExplosion = useCallback((entity: Entity) => {
-    const particleCount = 12
+    const particleCount = 8
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2
-      const speed = 1.5 + Math.random() * 2
+      const speed = 1 + Math.random() * 1.5
       particlesRef.current.push({
         x: entity.x,
         y: entity.y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         value: String(Math.floor(Math.random() * 10)),
-        opacity: 0.8,
-        life: 120,
-        maxLife: 120,
-        size: 16 + Math.random() * 8,
+        opacity: 0.5,
+        life: 80,
+        maxLife: 80,
+        size: 14 + Math.random() * 6,
       })
     }
   }, [])
@@ -610,8 +610,8 @@ export function AnimatedBackground() {
     resizeCanvas()
     window.addEventListener("resize", resizeCanvas)
 
-    // Initialize fewer entities - only 4 total
-    for (let i = 0; i < 4; i++) {
+    // Initialize more fish entities - 8 total for more activity
+    for (let i = 0; i < 8; i++) {
       entitiesRef.current.push(createEntity(canvas.width, canvas.height, false))
     }
 
@@ -629,11 +629,11 @@ export function AnimatedBackground() {
       ctx.textBaseline = "middle"
       
       for (const num of matrixNumbersRef.current) {
-        // Glow effect
-        ctx.shadowColor = "#22c55e"
-        ctx.shadowBlur = 12
+        // Glow effect - white/gray tones
+        ctx.shadowColor = "#e2e8f0"
+        ctx.shadowBlur = 10
         ctx.globalAlpha = num.opacity
-        ctx.fillStyle = "#22c55e"
+        ctx.fillStyle = "#f1f5f9"
         ctx.font = `bold ${num.size}px monospace`
         ctx.fillText(num.value, num.x, num.y)
         
@@ -672,10 +672,10 @@ export function AnimatedBackground() {
           continue
         }
         
-        ctx.shadowColor = "#22c55e"
-        ctx.shadowBlur = 8
-        ctx.globalAlpha = p.opacity
-        ctx.fillStyle = "#22c55e"
+        ctx.shadowColor = "#e2e8f0"
+        ctx.shadowBlur = 6
+        ctx.globalAlpha = p.opacity * 0.7
+        ctx.fillStyle = "#f1f5f9"
         ctx.font = `bold ${p.size}px monospace`
         ctx.fillText(p.value, p.x, p.y)
         
