@@ -1,100 +1,24 @@
 "use client"
 
-import { useEffect, useRef, useMemo, useCallback } from "react"
+import { useEffect, useRef } from "react"
 
-interface Fish {
+interface Anglerfish {
   x: number
   y: number
   vx: number
   vy: number
   size: number
   phase: number
-  transformTimer: number
-  opacity: number
-  isCodeFish: boolean
-  codeChars: string[]
-  alive: boolean
-  fishType: "shark" | "code" | "angler"
-  // Anglerfish specific
-  dartTimer?: number
-  isDarting?: boolean
-  dartDirection?: number
-  lureGlow?: number
-}
-
-interface Meteor {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  size: number
-  opacity: number
-  tailLength: number
-  hue: number // For slight color variation
-  life: number
-  maxLife: number
-}
-
-interface NumberSplash {
-  x: number
-  y: number
-  particles: SplashParticle[]
-  life: number
-  maxLife: number
-}
-
-interface SplashParticle {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  value: string
-  size: number
-  rotation: number
-  rotationSpeed: number
-  gravity: number
-  targetButton: boolean
-  buttonX: number
-  buttonY: number
-}
-
-interface Ripple {
-  x: number
-  y: number
-  radius: number
-  maxRadius: number
-  opacity: number
+  lureGlow: number
 }
 
 export function PondEcosystem() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number>(0)
-  const fishRef = useRef<Fish[]>([])
-  const splashesRef = useRef<NumberSplash[]>([])
-  const ripplesRef = useRef<Ripple[]>([])
-  const meteorsRef = useRef<Meteor[]>([])
+  const fishRef = useRef<Anglerfish | null>(null)
   const timeRef = useRef(0)
-  const buttonPosRef = useRef({ x: 0, y: 0 })
   const dimensionsRef = useRef({ width: 0, height: 0 })
-
-  const numberValues = useMemo(() => [
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-    "$", "¥", "€", "£"
-  ], [])
-
-  const codeChars = useMemo(() => [
-    "{", "}", "[", "]", "(", ")", "<", ">", "/", "=",
-    ";", ":", "0", "1"
-  ], [])
-
-  const createRipple = useCallback((x: number, y: number, maxRadius = 40) => {
-    ripplesRef.current.push({
-      x, y,
-      radius: 0,
-      maxRadius,
-      opacity: 0.12
-    })
-  }, [])
+  const textElementsRef = useRef<{ x: number; y: number; width: number; height: number; text: string }[]>([])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -103,16 +27,25 @@ export function PondEcosystem() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Get button position for particle targeting
-    const updateButtonPos = () => {
-      const btn = document.getElementById("start-building-btn")
-      if (btn) {
-        const rect = btn.getBoundingClientRect()
-        buttonPosRef.current = {
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2
+    // Collect text elements from the page for light reflection
+    const collectTextElements = () => {
+      textElementsRef.current = []
+      const textSelectors = "h1, h2, h3, h4, p, span, a, button, label"
+      const elements = document.querySelectorAll(textSelectors)
+      
+      elements.forEach(el => {
+        const rect = el.getBoundingClientRect()
+        const text = el.textContent?.trim() || ""
+        if (text && rect.width > 0 && rect.height > 0) {
+          textElementsRef.current.push({
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2 + window.scrollY,
+            width: rect.width,
+            height: rect.height,
+            text: text.substring(0, 50)
+          })
         }
-      }
+      })
     }
 
     const resize = () => {
@@ -130,646 +63,249 @@ export function PondEcosystem() {
       
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       
-      updateButtonPos()
-      initializeElements()
+      collectTextElements()
+      initializeFish()
     }
 
-    const initializeElements = () => {
+    const initializeFish = () => {
       const w = dimensionsRef.current.width
       const h = dimensionsRef.current.height
       
-      fishRef.current = []
-
-      // Initialize fish: 3 sharks, 2 code fish, 1 anglerfish
-      
-      // Sharks - big, faster, can swim off screen and wrap around
-      for (let i = 0; i < 3; i++) {
-        const direction = Math.random() > 0.5 ? 1 : -1
-        fishRef.current.push({
-          x: Math.random() * w,
-          y: 100 + Math.random() * (h - 200),
-          vx: direction * (1.5 + Math.random() * 1),
-          vy: (Math.random() - 0.5) * 0.5,
-          size: 90 + Math.random() * 40,
-          phase: Math.random() * Math.PI * 2,
-          transformTimer: 3400 + Math.random() * 400,
-          opacity: 0.3,
-          isCodeFish: false,
-          codeChars: [],
-          alive: true,
-          fishType: "shark"
-        })
+      // Single anglerfish patrolling
+      fishRef.current = {
+        x: w * 0.2,
+        y: h * 0.3,
+        vx: 0.4,
+        vy: 0.15,
+        size: 120,
+        phase: 0,
+        lureGlow: 0.8
       }
-      
-      // Code fish - never explode, just swim faster
-      for (let i = 0; i < 2; i++) {
-        const direction = Math.random() > 0.5 ? 1 : -1
-        fishRef.current.push({
-          x: 200 + Math.random() * (w - 400),
-          y: 150 + Math.random() * (h - 300),
-          vx: direction * (1.2 + Math.random() * 0.8),
-          vy: (Math.random() - 0.5) * 0.4,
-          size: 50 + Math.random() * 20,
-          phase: Math.random() * Math.PI * 2,
-          transformTimer: 0,
-          opacity: 0.35,
-          isCodeFish: true,
-          codeChars: Array.from({ length: 15 }, () => codeChars[Math.floor(Math.random() * codeChars.length)]),
-          alive: true,
-          fishType: "code"
-        })
-      }
-
-      // Anglerfish - huge, scary, darts across screen even faster
-      fishRef.current.push({
-        x: -300,
-        y: h * 0.3 + Math.random() * (h * 0.4),
-        vx: 0.5,
-        vy: 0,
-        size: 180 + Math.random() * 60,
-        phase: Math.random() * Math.PI * 2,
-        transformTimer: 2000 + Math.random() * 500,
-        opacity: 0.4,
-        isCodeFish: false,
-        codeChars: [],
-        alive: true,
-        fishType: "angler",
-        dartTimer: 120 + Math.random() * 80,
-        isDarting: false,
-        dartDirection: 1,
-        lureGlow: 0
-      })
     }
 
     resize()
     window.addEventListener("resize", resize)
-    window.addEventListener("scroll", updateButtonPos)
+    window.addEventListener("scroll", collectTextElements)
 
-    // Create number splash
-    const createSplash = (x: number, y: number, isShark: boolean = false) => {
-      const particles: SplashParticle[] = []
-      const particleCount = isShark 
-        ? 35 + Math.floor(Math.random() * 15)
-        : 18 + Math.floor(Math.random() * 10)
-      
-      const splashGoesToButton = Math.random() < 0.5
+    // Collect text elements periodically
+    const textInterval = setInterval(collectTextElements, 2000)
 
-      for (let i = 0; i < particleCount; i++) {
-        const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2
-        const speed = isShark ? 3 + Math.random() * 4 : 2 + Math.random() * 3
-
-        particles.push({
-          x: 0,
-          y: 0,
-          vx: Math.cos(angle) * speed * (0.5 + Math.random() * 0.4),
-          vy: Math.sin(angle) * speed,
-          value: numberValues[Math.floor(Math.random() * numberValues.length)],
-          size: isShark ? 12 + Math.random() * 14 : 10 + Math.random() * 10,
-          rotation: Math.random() * Math.PI * 2,
-          rotationSpeed: (Math.random() - 0.5) * 0.12,
-          gravity: splashGoesToButton ? 0.02 : 0.05 + Math.random() * 0.025,
-          targetButton: splashGoesToButton,
-          buttonX: buttonPosRef.current.x,
-          buttonY: buttonPosRef.current.y
-        })
-      }
-
-      splashesRef.current.push({ x, y, particles, life: 0, maxLife: splashGoesToButton ? 180 : 150 })
-      createRipple(x, y, isShark ? 70 : 45)
-    }
-
-    // Draw fish
-    const drawFish = (fish: Fish, time: number) => {
-      if (!fish.alive) return
-      
-      if (fish.isCodeFish) {
-        // Code fish made of characters
-        ctx.save()
-        ctx.translate(fish.x, fish.y)
-        ctx.scale(fish.vx > 0 ? 1 : -1, 1)
-
-        ctx.globalAlpha = fish.opacity
-        ctx.fillStyle = "#ffffff"
-        ctx.font = `${fish.size * 0.6}px "IBM Plex Mono", monospace`
-        ctx.textAlign = "center"
-
-        fish.codeChars.forEach((char, i) => {
-          const angle = (i / fish.codeChars.length) * Math.PI * 2
-          const dist = fish.size * (0.4 + Math.sin(angle * 2) * 0.2)
-          const x = Math.cos(angle + time * 0.002) * dist
-          const y = Math.sin(angle + time * 0.002) * dist * 0.5
-
-          ctx.globalAlpha = fish.opacity * (0.6 + Math.sin(i + time * 0.003) * 0.4)
-          ctx.fillText(char, x, y)
-        })
-
-        ctx.restore()
-      } else if (fish.fishType === "shark") {
-        // Big shark fish
-        ctx.save()
-        ctx.translate(fish.x, fish.y)
-        ctx.scale(fish.vx > 0 ? 1 : -1, 1)
-
-        const wave = Math.sin(fish.phase + time * 0.005) * 0.08
-        ctx.rotate(wave)
-
-        ctx.globalAlpha = fish.opacity
-        ctx.fillStyle = "#ffffff"
-
-        // Streamlined body
-        ctx.beginPath()
-        ctx.moveTo(fish.size, 0)
-        ctx.quadraticCurveTo(fish.size * 0.5, -fish.size * 0.35, -fish.size * 0.3, -fish.size * 0.25)
-        ctx.lineTo(-fish.size, 0)
-        ctx.lineTo(-fish.size * 0.3, fish.size * 0.25)
-        ctx.quadraticCurveTo(fish.size * 0.5, fish.size * 0.35, fish.size, 0)
-        ctx.fill()
-
-        // Dorsal fin
-        ctx.beginPath()
-        ctx.moveTo(fish.size * 0.2, -fish.size * 0.25)
-        ctx.lineTo(0, -fish.size * 0.6)
-        ctx.lineTo(-fish.size * 0.3, -fish.size * 0.25)
-        ctx.closePath()
-        ctx.fill()
-
-        // Tail fin
-        const tailWave = Math.sin(fish.phase + time * 0.008) * 0.25
-        ctx.save()
-        ctx.translate(-fish.size, 0)
-        ctx.rotate(tailWave)
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.lineTo(-fish.size * 0.5, -fish.size * 0.4)
-        ctx.lineTo(-fish.size * 0.35, 0)
-        ctx.lineTo(-fish.size * 0.5, fish.size * 0.4)
-        ctx.closePath()
-        ctx.fill()
-        ctx.restore()
-
-        // Pectoral fin
-        ctx.beginPath()
-        ctx.moveTo(fish.size * 0.3, fish.size * 0.15)
-        ctx.lineTo(fish.size * 0.1, fish.size * 0.4)
-        ctx.lineTo(-fish.size * 0.1, fish.size * 0.15)
-        ctx.closePath()
-        ctx.fill()
-
-        // Eye
-        ctx.globalAlpha = fish.opacity * 1.8
-        ctx.beginPath()
-        ctx.arc(fish.size * 0.6, -fish.size * 0.08, fish.size * 0.08, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Gill slits
-        ctx.globalAlpha = fish.opacity * 0.5
-        ctx.lineWidth = 1
-        ctx.strokeStyle = "#ffffff"
-        for (let i = 0; i < 3; i++) {
-          ctx.beginPath()
-          ctx.moveTo(fish.size * 0.35 - i * 4, -fish.size * 0.1)
-          ctx.lineTo(fish.size * 0.35 - i * 4, fish.size * 0.1)
-          ctx.stroke()
-        }
-
-        ctx.restore()
-      } else if (fish.fishType === "angler") {
-        // Scary anglerfish
-        ctx.save()
-        ctx.translate(fish.x, fish.y)
-        ctx.scale(fish.vx > 0 ? 1 : -1, 1)
-
-        const wave = Math.sin(fish.phase + time * 0.003) * 0.05
-        ctx.rotate(wave)
-
-        ctx.globalAlpha = fish.opacity
-        ctx.fillStyle = "#ffffff"
-
-        // Bulbous, ugly body
-        ctx.beginPath()
-        ctx.moveTo(fish.size * 0.8, 0)
-        ctx.quadraticCurveTo(fish.size * 0.6, -fish.size * 0.5, 0, -fish.size * 0.45)
-        ctx.quadraticCurveTo(-fish.size * 0.5, -fish.size * 0.4, -fish.size * 0.7, -fish.size * 0.15)
-        ctx.lineTo(-fish.size, 0)
-        ctx.quadraticCurveTo(-fish.size * 0.7, fish.size * 0.3, -fish.size * 0.3, fish.size * 0.4)
-        ctx.quadraticCurveTo(fish.size * 0.3, fish.size * 0.5, fish.size * 0.8, 0)
-        ctx.fill()
-
-        // Huge scary mouth
-        ctx.globalAlpha = fish.opacity * 0.3
-        ctx.fillStyle = "#000000"
-        ctx.beginPath()
-        ctx.moveTo(fish.size * 0.85, fish.size * 0.05)
-        ctx.quadraticCurveTo(fish.size * 0.5, fish.size * 0.35, fish.size * 0.1, fish.size * 0.25)
-        ctx.quadraticCurveTo(fish.size * 0.4, fish.size * 0.1, fish.size * 0.85, fish.size * 0.05)
-        ctx.fill()
-
-        // Sharp teeth
-        ctx.globalAlpha = fish.opacity * 1.2
-        ctx.fillStyle = "#ffffff"
-        const teethCount = 8
-        for (let i = 0; i < teethCount; i++) {
-          const t = i / (teethCount - 1)
-          const tx = fish.size * 0.8 - t * fish.size * 0.65
-          const ty = fish.size * 0.08 + Math.sin(t * Math.PI) * fish.size * 0.15
-          const toothSize = fish.size * 0.08 * (1 - t * 0.3)
-          
-          ctx.beginPath()
-          ctx.moveTo(tx - toothSize * 0.3, ty)
-          ctx.lineTo(tx, ty + toothSize)
-          ctx.lineTo(tx + toothSize * 0.3, ty)
-          ctx.closePath()
-          ctx.fill()
-        }
-        // Bottom teeth
-        for (let i = 0; i < teethCount - 2; i++) {
-          const t = (i + 0.5) / (teethCount - 1)
-          const tx = fish.size * 0.75 - t * fish.size * 0.55
-          const ty = fish.size * 0.22 + Math.sin(t * Math.PI) * fish.size * 0.08
-          const toothSize = fish.size * 0.06 * (1 - t * 0.3)
-          
-          ctx.beginPath()
-          ctx.moveTo(tx - toothSize * 0.3, ty)
-          ctx.lineTo(tx, ty - toothSize)
-          ctx.lineTo(tx + toothSize * 0.3, ty)
-          ctx.closePath()
-          ctx.fill()
-        }
-
-        // Creepy small eye
-        ctx.globalAlpha = fish.opacity * 2
-        ctx.beginPath()
-        ctx.arc(fish.size * 0.3, -fish.size * 0.2, fish.size * 0.06, 0, Math.PI * 2)
-        ctx.fill()
-        
-        // Pupil
-        ctx.globalAlpha = fish.opacity * 0.5
-        ctx.fillStyle = "#000000"
-        ctx.beginPath()
-        ctx.arc(fish.size * 0.32, -fish.size * 0.2, fish.size * 0.03, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Bioluminescent lure (esca)
-        const lureX = fish.size * 0.1
-        const lureY = -fish.size * 0.65
-        const glowIntensity = fish.lureGlow || 0.5 + Math.sin(time * 0.05) * 0.3
-        
-        // Illicium (the fishing rod stalk)
-        ctx.globalAlpha = fish.opacity * 0.8
-        ctx.strokeStyle = "#ffffff"
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.moveTo(fish.size * 0.2, -fish.size * 0.4)
-        ctx.quadraticCurveTo(fish.size * 0.3, -fish.size * 0.6, lureX, lureY)
-        ctx.stroke()
-
-        // Glowing lure
-        const glowRadius = fish.size * 0.12
-        const gradient = ctx.createRadialGradient(lureX, lureY, 0, lureX, lureY, glowRadius * 3)
-        gradient.addColorStop(0, `rgba(200, 255, 255, ${glowIntensity})`)
-        gradient.addColorStop(0.3, `rgba(100, 200, 255, ${glowIntensity * 0.6})`)
-        gradient.addColorStop(0.6, `rgba(50, 150, 255, ${glowIntensity * 0.3})`)
-        gradient.addColorStop(1, "rgba(0, 100, 200, 0)")
-        
-        ctx.globalAlpha = 1
-        ctx.fillStyle = gradient
-        ctx.beginPath()
-        ctx.arc(lureX, lureY, glowRadius * 3, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Bright center of lure
-        ctx.globalAlpha = glowIntensity
-        ctx.fillStyle = "#ffffff"
-        ctx.beginPath()
-        ctx.arc(lureX, lureY, glowRadius * 0.5, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Spiny fins
-        ctx.globalAlpha = fish.opacity * 0.7
-        ctx.fillStyle = "#ffffff"
-        for (let i = 0; i < 5; i++) {
-          const spineX = -fish.size * 0.2 - i * fish.size * 0.12
-          const spineHeight = fish.size * 0.2 * (1 - i * 0.1)
-          ctx.beginPath()
-          ctx.moveTo(spineX - fish.size * 0.03, -fish.size * 0.35)
-          ctx.lineTo(spineX, -fish.size * 0.35 - spineHeight)
-          ctx.lineTo(spineX + fish.size * 0.03, -fish.size * 0.35)
-          ctx.closePath()
-          ctx.fill()
-        }
-
-        // Ragged tail
-        const tailWave = Math.sin(fish.phase + time * 0.006) * 0.2
-        ctx.save()
-        ctx.translate(-fish.size, 0)
-        ctx.rotate(tailWave)
-        ctx.globalAlpha = fish.opacity * 0.8
-        ctx.beginPath()
-        ctx.moveTo(0, -fish.size * 0.1)
-        ctx.lineTo(-fish.size * 0.4, -fish.size * 0.35)
-        ctx.lineTo(-fish.size * 0.3, -fish.size * 0.15)
-        ctx.lineTo(-fish.size * 0.5, 0)
-        ctx.lineTo(-fish.size * 0.3, fish.size * 0.15)
-        ctx.lineTo(-fish.size * 0.4, fish.size * 0.3)
-        ctx.lineTo(0, fish.size * 0.1)
-        ctx.closePath()
-        ctx.fill()
-        ctx.restore()
-
-        ctx.restore()
-      }
-    }
-
-    // Main animation loop
     const animate = () => {
       timeRef.current++
       const time = timeRef.current
       const { width: w, height: h } = dimensionsRef.current
+      const fish = fishRef.current
 
       ctx.clearRect(0, 0, w, h)
 
-      // Spawn new meteors randomly
-      if (Math.random() > 0.985) {
-        const startSide = Math.random() > 0.5 // true = left, false = top
-        const speed = 8 + Math.random() * 12
-        const angle = startSide 
-          ? -Math.PI / 6 + Math.random() * Math.PI / 4 // Coming from left, going down-right
-          : Math.PI / 3 + Math.random() * Math.PI / 4 // Coming from top, going down
-        
-        meteorsRef.current.push({
-          x: startSide ? -50 : Math.random() * w,
-          y: startSide ? Math.random() * h * 0.6 : -50,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          size: 3 + Math.random() * 4,
-          opacity: 0.7 + Math.random() * 0.3,
-          tailLength: 80 + Math.random() * 120,
-          hue: Math.random() * 60 - 30, // Slight color variation around white
-          life: 0,
-          maxLife: 200 + Math.random() * 100
-        })
+      if (!fish) {
+        animationRef.current = requestAnimationFrame(animate)
+        return
       }
 
-      // Draw and update meteors
-      meteorsRef.current = meteorsRef.current.filter(meteor => {
-        meteor.x += meteor.vx
-        meteor.y += meteor.vy
-        meteor.life++
+      // Update fish position - slow patrol
+      fish.x += fish.vx
+      fish.y += fish.vy
+      fish.phase += 0.02
+
+      // Gentle direction changes
+      if (Math.random() > 0.99) {
+        fish.vx += (Math.random() - 0.5) * 0.15
+        fish.vy += (Math.random() - 0.5) * 0.1
+      }
+
+      // Keep speed in check
+      fish.vx = Math.max(-0.8, Math.min(0.8, fish.vx))
+      fish.vy = Math.max(-0.4, Math.min(0.4, fish.vy))
+
+      // Bounce off edges with padding
+      const padding = fish.size * 1.5
+      if (fish.x < padding || fish.x > w - padding) {
+        fish.vx *= -1
+        fish.x = Math.max(padding, Math.min(w - padding, fish.x))
+      }
+      if (fish.y < padding || fish.y > h - padding) {
+        fish.vy *= -1
+        fish.y = Math.max(padding, Math.min(h - padding, fish.y))
+      }
+
+      // Pulsing lure glow
+      fish.lureGlow = 0.6 + Math.sin(time * 0.03) * 0.3
+
+      // Calculate lure position in world space
+      const facingRight = fish.vx > 0
+      const lureOffsetX = facingRight ? fish.size * 0.1 : -fish.size * 0.1
+      const lureOffsetY = -fish.size * 0.65
+      const lureWorldX = fish.x + lureOffsetX
+      const lureWorldY = fish.y + lureOffsetY
+
+      // Draw blue light reflection on nearby text elements
+      const lightRadius = 350
+      textElementsRef.current.forEach(textEl => {
+        const dx = textEl.x - lureWorldX
+        const dy = textEl.y - lureWorldY
+        const dist = Math.sqrt(dx * dx + dy * dy)
         
-        // Fade in at start, fade out at end
-        let alpha = meteor.opacity
-        if (meteor.life < 10) {
-          alpha = meteor.opacity * (meteor.life / 10)
-        } else if (meteor.life > meteor.maxLife - 30) {
-          alpha = meteor.opacity * ((meteor.maxLife - meteor.life) / 30)
-        }
-        
-        // Draw meteor tail (gradient line)
-        const tailX = meteor.x - (meteor.vx / Math.sqrt(meteor.vx * meteor.vx + meteor.vy * meteor.vy)) * meteor.tailLength
-        const tailY = meteor.y - (meteor.vy / Math.sqrt(meteor.vx * meteor.vx + meteor.vy * meteor.vy)) * meteor.tailLength
-        
-        const gradient = ctx.createLinearGradient(tailX, tailY, meteor.x, meteor.y)
-        gradient.addColorStop(0, `rgba(255, 255, 255, 0)`)
-        gradient.addColorStop(0.5, `rgba(255, ${255 + meteor.hue}, ${220 + meteor.hue}, ${alpha * 0.3})`)
-        gradient.addColorStop(0.85, `rgba(255, ${255 + meteor.hue}, ${230 + meteor.hue}, ${alpha * 0.7})`)
-        gradient.addColorStop(1, `rgba(255, 255, 255, ${alpha})`)
-        
-        ctx.strokeStyle = gradient
-        ctx.lineWidth = meteor.size * 0.8
-        ctx.lineCap = "round"
-        ctx.beginPath()
-        ctx.moveTo(tailX, tailY)
-        ctx.lineTo(meteor.x, meteor.y)
-        ctx.stroke()
-        
-        // Draw bright head
-        const headGradient = ctx.createRadialGradient(meteor.x, meteor.y, 0, meteor.x, meteor.y, meteor.size * 3)
-        headGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`)
-        headGradient.addColorStop(0.3, `rgba(200, 220, 255, ${alpha * 0.6})`)
-        headGradient.addColorStop(0.6, `rgba(150, 180, 255, ${alpha * 0.3})`)
-        headGradient.addColorStop(1, `rgba(100, 150, 255, 0)`)
-        
-        ctx.fillStyle = headGradient
-        ctx.beginPath()
-        ctx.arc(meteor.x, meteor.y, meteor.size * 3, 0, Math.PI * 2)
-        ctx.fill()
-        
-        // Bright core
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`
-        ctx.beginPath()
-        ctx.arc(meteor.x, meteor.y, meteor.size * 0.8, 0, Math.PI * 2)
-        ctx.fill()
-        
-        // Remove if off screen or expired
-        return meteor.life < meteor.maxLife && 
-               meteor.x < w + 100 && 
-               meteor.y < h + 100 &&
-               meteor.x > -200 &&
-               meteor.y > -200
-      })
-
-      // Draw ripples
-      ripplesRef.current = ripplesRef.current.filter(ripple => {
-        ripple.radius += 0.8
-        ripple.opacity -= 0.002
-
-        if (ripple.opacity <= 0) return false
-
-        ctx.globalAlpha = ripple.opacity
-        ctx.strokeStyle = "#ffffff"
-        ctx.lineWidth = 0.8
-        ctx.beginPath()
-        ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2)
-        ctx.stroke()
-
-        if (ripple.radius < ripple.maxRadius * 0.6) {
-          ctx.globalAlpha = ripple.opacity * 0.5
-          ctx.beginPath()
-          ctx.arc(ripple.x, ripple.y, ripple.radius * 0.6, 0, Math.PI * 2)
-          ctx.stroke()
-        }
-
-        return true
-      })
-
-      // Draw and update fish
-      fishRef.current.forEach((fish) => {
-        if (!fish.alive) return
-
-        // Special anglerfish behavior - darting
-        if (fish.fishType === "angler") {
-          fish.dartTimer = (fish.dartTimer || 0) - 1
+        if (dist < lightRadius) {
+          const intensity = (1 - dist / lightRadius) * fish.lureGlow * 0.6
           
-          // Update lure glow
-          fish.lureGlow = 0.5 + Math.sin(time * 0.05) * 0.3 + (fish.isDarting ? 0.5 : 0)
-          
-          if (fish.isDarting) {
-            // Darting across screen at very high speed
-            fish.x += fish.vx * 12
-            fish.y += fish.vy * 3
-            fish.phase += 0.08
-            
-            // Check if reached edge or dart time expired
-            if (fish.x > w + fish.size * 2 || fish.x < -fish.size * 2 || fish.dartTimer! < -40) {
-              fish.isDarting = false
-              fish.dartTimer = 200 + Math.random() * 150 // Wait before next dart
-              
-              // Reposition off screen on opposite side
-              fish.dartDirection = fish.dartDirection === 1 ? -1 : 1
-              fish.x = fish.dartDirection === 1 ? -fish.size * 1.5 : w + fish.size * 1.5
-              fish.y = h * 0.15 + Math.random() * (h * 0.7)
-              fish.vx = fish.dartDirection * 0.8
-              fish.vy = (Math.random() - 0.5) * 0.2
-            }
-          } else {
-            // Slow lurking movement
-            fish.x += fish.vx
-            fish.y += fish.vy
-            fish.phase += 0.02
-            
-            // Random subtle movements
-            if (Math.random() > 0.97) {
-              fish.vy += (Math.random() - 0.5) * 0.1
-              fish.vy = Math.max(-0.3, Math.min(0.3, fish.vy))
-            }
-            
-            // Keep in bounds while lurking
-            if (fish.y < h * 0.1) fish.vy = Math.abs(fish.vy)
-            if (fish.y > h * 0.9) fish.vy = -Math.abs(fish.vy)
-            
-            // Start darting when timer expires
-            if (fish.dartTimer! <= 0) {
-              fish.isDarting = true
-              fish.dartTimer = 0
-              // Set dart direction and speed - much faster
-              fish.vx = fish.dartDirection! * (5 + Math.random() * 3)
-              fish.vy = (Math.random() - 0.5) * 1.5
-              
-              // Create ripple when darting starts
-              createRipple(fish.x, fish.y, 120)
-            }
-          }
-          
-          // Transform timer (splash) for anglerfish
-          if (fish.transformTimer > 0) {
-            fish.transformTimer--
-            if (fish.transformTimer === 0) {
-              createSplash(fish.x, fish.y, true)
-              fish.transformTimer = 2000 + Math.random() * 500
-            }
-          }
-        } else if (fish.fishType === "shark") {
-          // Sharks - swim fast, wrap around screen
-          fish.x += fish.vx
-          fish.y += fish.vy
-          fish.phase += 0.06
-          
-          // Wrap around screen edges
-          if (fish.x > w + fish.size * 2) {
-            fish.x = -fish.size * 2
-            fish.y = 100 + Math.random() * (h - 200)
-          }
-          if (fish.x < -fish.size * 2) {
-            fish.x = w + fish.size * 2
-            fish.y = 100 + Math.random() * (h - 200)
-          }
-          
-          // Gentle vertical movement
-          if (Math.random() > 0.98) {
-            fish.vy += (Math.random() - 0.5) * 0.3
-            fish.vy = Math.max(-1, Math.min(1, fish.vy))
-          }
-          if (fish.y < 80 || fish.y > h - 80) fish.vy *= -0.8
-          
-          // Occasional speed bursts
-          if (Math.random() > 0.998) {
-            fish.vx = (fish.vx > 0 ? 1 : -1) * (2 + Math.random() * 1.5)
-            createRipple(fish.x, fish.y, 60)
-          }
-          
-          // Transform timer (splash)
-          if (fish.transformTimer > 0) {
-            fish.transformTimer--
-            if (fish.transformTimer === 0) {
-              createSplash(fish.x, fish.y, true)
-              fish.transformTimer = 3400 + Math.random() * 400
-            }
-          }
-        } else if (fish.fishType === "code") {
-          // Code fish - swim steadily, wrap around
-          fish.x += fish.vx
-          fish.y += fish.vy
-          fish.phase += 0.04
-          
-          // Wrap around screen
-          if (fish.x > w + fish.size * 2) {
-            fish.x = -fish.size * 2
-            fish.y = 100 + Math.random() * (h - 200)
-          }
-          if (fish.x < -fish.size * 2) {
-            fish.x = w + fish.size * 2
-            fish.y = 100 + Math.random() * (h - 200)
-          }
-          
-          // Gentle vertical movement
-          if (Math.random() > 0.98) {
-            fish.vy += (Math.random() - 0.5) * 0.2
-            fish.vy = Math.max(-0.8, Math.min(0.8, fish.vy))
-          }
-          if (fish.y < 80 || fish.y > h - 80) fish.vy *= -0.8
-        }
-
-        drawFish(fish, time)
-      })
-
-      // Draw and update splashes
-      splashesRef.current = splashesRef.current.filter(splash => {
-        splash.life++
-
-        splash.particles.forEach(p => {
-          if (p.targetButton && splash.life > 20) {
-            const dx = p.buttonX - (splash.x + p.x)
-            const dy = p.buttonY - (splash.y + p.y)
-            const dist = Math.sqrt(dx * dx + dy * dy)
-            
-            if (dist > 10) {
-              p.vx += (dx / dist) * 0.15
-              p.vy += (dy / dist) * 0.15
-              p.vx *= 0.98
-              p.vy *= 0.98
-            }
-          } else {
-            p.vy += p.gravity
-          }
-
-          p.x += p.vx
-          p.y += p.vy
-          p.rotation += p.rotationSpeed
-        })
-
-        const progress = splash.life / splash.maxLife
-        const fadeStart = 0.6
-
-        splash.particles.forEach(p => {
-          let alpha = 0.4
-          if (progress > fadeStart) {
-            alpha = 0.4 * (1 - (progress - fadeStart) / (1 - fadeStart))
-          }
-
+          // Draw glowing text reflection
           ctx.save()
-          ctx.translate(splash.x + p.x, splash.y + p.y)
-          ctx.rotate(p.rotation)
-          ctx.globalAlpha = alpha
-          ctx.fillStyle = "#ffffff"
-          ctx.font = `bold ${p.size}px "IBM Plex Mono", monospace`
+          ctx.globalAlpha = intensity
+          ctx.font = "bold 14px 'IBM Plex Mono', monospace"
           ctx.textAlign = "center"
           ctx.textBaseline = "middle"
-          ctx.fillText(p.value, 0, 0)
+          
+          // Blue glow effect on text area
+          const gradient = ctx.createRadialGradient(
+            textEl.x, textEl.y, 0,
+            textEl.x, textEl.y, Math.max(textEl.width, textEl.height) * 0.8
+          )
+          gradient.addColorStop(0, `rgba(80, 180, 255, ${intensity * 0.4})`)
+          gradient.addColorStop(0.5, `rgba(40, 120, 255, ${intensity * 0.2})`)
+          gradient.addColorStop(1, "rgba(20, 80, 200, 0)")
+          
+          ctx.fillStyle = gradient
+          ctx.beginPath()
+          ctx.ellipse(textEl.x, textEl.y, textEl.width * 0.6, textEl.height * 0.8, 0, 0, Math.PI * 2)
+          ctx.fill()
+          
           ctx.restore()
-        })
-
-        return splash.life < splash.maxLife
+        }
       })
+
+      // Draw large ambient blue glow from lure
+      const ambientGradient = ctx.createRadialGradient(
+        lureWorldX, lureWorldY, 0,
+        lureWorldX, lureWorldY, lightRadius
+      )
+      ambientGradient.addColorStop(0, `rgba(100, 200, 255, ${fish.lureGlow * 0.15})`)
+      ambientGradient.addColorStop(0.3, `rgba(60, 150, 255, ${fish.lureGlow * 0.08})`)
+      ambientGradient.addColorStop(0.6, `rgba(30, 100, 220, ${fish.lureGlow * 0.03})`)
+      ambientGradient.addColorStop(1, "rgba(20, 60, 150, 0)")
+      
+      ctx.fillStyle = ambientGradient
+      ctx.beginPath()
+      ctx.arc(lureWorldX, lureWorldY, lightRadius, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Draw anglerfish
+      ctx.save()
+      ctx.translate(fish.x, fish.y)
+      ctx.scale(facingRight ? 1 : -1, 1)
+
+      const wave = Math.sin(fish.phase + time * 0.003) * 0.05
+      ctx.rotate(wave)
+
+      ctx.globalAlpha = 0.35
+      ctx.fillStyle = "#ffffff"
+
+      // Bulbous body
+      ctx.beginPath()
+      ctx.moveTo(fish.size * 0.8, 0)
+      ctx.quadraticCurveTo(fish.size * 0.6, -fish.size * 0.5, 0, -fish.size * 0.45)
+      ctx.quadraticCurveTo(-fish.size * 0.5, -fish.size * 0.4, -fish.size * 0.7, -fish.size * 0.15)
+      ctx.lineTo(-fish.size, 0)
+      ctx.quadraticCurveTo(-fish.size * 0.7, fish.size * 0.3, -fish.size * 0.3, fish.size * 0.4)
+      ctx.quadraticCurveTo(fish.size * 0.3, fish.size * 0.5, fish.size * 0.8, 0)
+      ctx.fill()
+
+      // Mouth
+      ctx.globalAlpha = 0.15
+      ctx.fillStyle = "#000000"
+      ctx.beginPath()
+      ctx.moveTo(fish.size * 0.85, fish.size * 0.05)
+      ctx.quadraticCurveTo(fish.size * 0.5, fish.size * 0.35, fish.size * 0.1, fish.size * 0.25)
+      ctx.quadraticCurveTo(fish.size * 0.4, fish.size * 0.1, fish.size * 0.85, fish.size * 0.05)
+      ctx.fill()
+
+      // Teeth
+      ctx.globalAlpha = 0.45
+      ctx.fillStyle = "#ffffff"
+      const teethCount = 8
+      for (let i = 0; i < teethCount; i++) {
+        const t = i / (teethCount - 1)
+        const tx = fish.size * 0.8 - t * fish.size * 0.65
+        const ty = fish.size * 0.08 + Math.sin(t * Math.PI) * fish.size * 0.15
+        const toothSize = fish.size * 0.07 * (1 - t * 0.3)
+        
+        ctx.beginPath()
+        ctx.moveTo(tx - toothSize * 0.3, ty)
+        ctx.lineTo(tx, ty + toothSize)
+        ctx.lineTo(tx + toothSize * 0.3, ty)
+        ctx.closePath()
+        ctx.fill()
+      }
+
+      // Eye
+      ctx.globalAlpha = 0.6
+      ctx.beginPath()
+      ctx.arc(fish.size * 0.3, -fish.size * 0.2, fish.size * 0.05, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Illicium (stalk)
+      ctx.globalAlpha = 0.3
+      ctx.strokeStyle = "#ffffff"
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(fish.size * 0.2, -fish.size * 0.4)
+      ctx.quadraticCurveTo(fish.size * 0.3, -fish.size * 0.55, fish.size * 0.1, -fish.size * 0.65)
+      ctx.stroke()
+
+      // Glowing blue lure
+      const lureX = fish.size * 0.1
+      const lureY = -fish.size * 0.65
+      
+      const lureGradient = ctx.createRadialGradient(lureX, lureY, 0, lureX, lureY, fish.size * 0.25)
+      lureGradient.addColorStop(0, `rgba(150, 220, 255, ${fish.lureGlow})`)
+      lureGradient.addColorStop(0.2, `rgba(80, 180, 255, ${fish.lureGlow * 0.8})`)
+      lureGradient.addColorStop(0.5, `rgba(40, 120, 255, ${fish.lureGlow * 0.4})`)
+      lureGradient.addColorStop(1, "rgba(20, 80, 200, 0)")
+      
+      ctx.globalAlpha = 1
+      ctx.fillStyle = lureGradient
+      ctx.beginPath()
+      ctx.arc(lureX, lureY, fish.size * 0.25, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Bright core
+      ctx.globalAlpha = fish.lureGlow
+      ctx.fillStyle = "#ffffff"
+      ctx.beginPath()
+      ctx.arc(lureX, lureY, fish.size * 0.04, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Dorsal spines
+      ctx.globalAlpha = 0.25
+      ctx.fillStyle = "#ffffff"
+      for (let i = 0; i < 4; i++) {
+        const spineX = -fish.size * 0.15 - i * fish.size * 0.12
+        const spineHeight = fish.size * 0.15 * (1 - i * 0.15)
+        ctx.beginPath()
+        ctx.moveTo(spineX - 2, -fish.size * 0.38)
+        ctx.lineTo(spineX, -fish.size * 0.38 - spineHeight)
+        ctx.lineTo(spineX + 2, -fish.size * 0.38)
+        ctx.closePath()
+        ctx.fill()
+      }
+
+      // Tail
+      const tailWave = Math.sin(fish.phase + time * 0.005) * 0.15
+      ctx.save()
+      ctx.translate(-fish.size, 0)
+      ctx.rotate(tailWave)
+      ctx.globalAlpha = 0.3
+      ctx.beginPath()
+      ctx.moveTo(0, -fish.size * 0.08)
+      ctx.lineTo(-fish.size * 0.3, -fish.size * 0.25)
+      ctx.lineTo(-fish.size * 0.25, 0)
+      ctx.lineTo(-fish.size * 0.3, fish.size * 0.2)
+      ctx.lineTo(0, fish.size * 0.08)
+      ctx.closePath()
+      ctx.fill()
+      ctx.restore()
+
+      ctx.restore()
 
       animationRef.current = requestAnimationFrame(animate)
     }
@@ -778,10 +314,11 @@ export function PondEcosystem() {
 
     return () => {
       window.removeEventListener("resize", resize)
-      window.removeEventListener("scroll", updateButtonPos)
+      window.removeEventListener("scroll", collectTextElements)
+      clearInterval(textInterval)
       cancelAnimationFrame(animationRef.current)
     }
-  }, [numberValues, codeChars, createRipple])
+  }, [])
 
   return (
     <canvas
