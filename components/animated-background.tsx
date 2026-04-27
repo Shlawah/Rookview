@@ -37,13 +37,29 @@ interface Particle {
   size: number
 }
 
+interface MeltingEntity {
+  entity: Entity
+  startTime: number
+  particles: MeltParticle[]
+}
+
+interface MeltParticle {
+  x: number
+  y: number
+  vy: number
+  value: string
+  opacity: number
+  delay: number
+  size: number
+}
+
 export function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const entitiesRef = useRef<Entity[]>([])
   const matrixNumbersRef = useRef<MatrixNumber[]>([])
-  const particlesRef = useRef<Particle[]>([])
+  const meltingEntitiesRef = useRef<MeltingEntity[]>([])
   const animationFrameRef = useRef<number>(0)
-  const lastExplosionRef = useRef<number>(0)
+  const lastMeltRef = useRef<number>(0)
 
   const createMatrixNumber = useCallback((width: number, height: number): MatrixNumber => {
     return {
@@ -121,23 +137,29 @@ export function AnimatedBackground() {
     }
   }, [])
 
-  const createExplosion = useCallback((entity: Entity) => {
-    const particleCount = 8
+  // Create melting effect - fish slowly dissolves into falling code
+  const createMeltEffect = useCallback((entity: Entity, time: number) => {
+    const particles: MeltParticle[] = []
+    const particleCount = 20
+    const spread = entity.size * 0.8
+    
     for (let i = 0; i < particleCount; i++) {
-      const angle = (i / particleCount) * Math.PI * 2
-      const speed = 1 + Math.random() * 1.5
-      particlesRef.current.push({
-        x: entity.x,
-        y: entity.y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
+      particles.push({
+        x: entity.x + (Math.random() - 0.5) * spread,
+        y: entity.y + (Math.random() - 0.5) * spread * 0.6,
+        vy: 0.5 + Math.random() * 1.5,
         value: String(Math.floor(Math.random() * 10)),
-        opacity: 0.5,
-        life: 80,
-        maxLife: 80,
-        size: 14 + Math.random() * 6,
+        opacity: 0,
+        delay: i * 80 + Math.random() * 200, // Staggered appearance
+        size: 12 + Math.random() * 8,
       })
     }
+    
+    meltingEntitiesRef.current.push({
+      entity: { ...entity },
+      startTime: time,
+      particles,
+    })
   }, [])
 
   // Draw shark
@@ -610,13 +632,13 @@ export function AnimatedBackground() {
     resizeCanvas()
     window.addEventListener("resize", resizeCanvas)
 
-    // Initialize more fish entities - 8 total for more activity
-    for (let i = 0; i < 8; i++) {
+    // Initialize more fish entities - 12 total
+    for (let i = 0; i < 12; i++) {
       entitiesRef.current.push(createEntity(canvas.width, canvas.height, false))
     }
 
-    // Initialize sparse matrix numbers
-    for (let i = 0; i < 60; i++) {
+    // Initialize sparse matrix numbers - fewer for cleaner look
+    for (let i = 0; i < 20; i++) {
       matrixNumbersRef.current.push(createMatrixNumber(canvas.width, canvas.height))
     }
 
@@ -655,33 +677,72 @@ export function AnimatedBackground() {
       
       ctx.shadowBlur = 0
       
-      // Draw explosion particles
-      for (let i = particlesRef.current.length - 1; i >= 0; i--) {
-        const p = particlesRef.current[i]
+      // Draw melting entities - fish dissolving into falling code
+      for (let i = meltingEntitiesRef.current.length - 1; i >= 0; i--) {
+        const melt = meltingEntitiesRef.current[i]
+        const elapsed = time - melt.startTime
+        const meltDuration = 3000 // 3 seconds to fully melt
+        const meltProgress = Math.min(elapsed / meltDuration, 1)
         
-        p.x += p.vx
-        p.y += p.vy
-        p.vy += 0.02 // Subtle gravity
-        p.vx *= 0.99
-        p.vy *= 0.99
-        p.life--
-        p.opacity = (p.life / p.maxLife) * 0.9
-        
-        if (p.life <= 0) {
-          particlesRef.current.splice(i, 1)
-          continue
+        // Draw the fading entity
+        if (meltProgress < 0.8) {
+          const fadeEntity = { ...melt.entity, opacity: melt.entity.opacity * (1 - meltProgress * 1.2) }
+          if (fadeEntity.type === "fish") {
+            switch (fadeEntity.variant) {
+              case 0: drawShark(ctx, fadeEntity, time); break
+              case 1: drawStingray(ctx, fadeEntity, time); break
+              case 2: drawGar(ctx, fadeEntity, time); break
+              default: drawRegularFish(ctx, fadeEntity, time)
+            }
+          } else {
+            drawChessPiece(ctx, fadeEntity)
+          }
         }
         
-        ctx.shadowColor = "#e2e8f0"
-        ctx.shadowBlur = 6
-        ctx.globalAlpha = p.opacity * 0.7
-        ctx.fillStyle = "#f1f5f9"
-        ctx.font = `bold ${p.size}px monospace`
-        ctx.fillText(p.value, p.x, p.y)
+        // Draw falling code particles
+        let allDone = true
+        for (const p of melt.particles) {
+          const particleElapsed = elapsed - p.delay
+          if (particleElapsed < 0) {
+            allDone = false
+            continue
+          }
+          
+          // Fade in then fall and fade out
+          const fadeInDuration = 300
+          const fallDuration = 4000
+          const particleProgress = particleElapsed / fallDuration
+          
+          if (particleProgress < 1) {
+            allDone = false
+            p.y += p.vy
+            
+            // Fade in, then fade out as it falls
+            if (particleElapsed < fadeInDuration) {
+              p.opacity = (particleElapsed / fadeInDuration) * 0.6
+            } else {
+              p.opacity = 0.6 * (1 - (particleProgress - 0.2))
+            }
+            
+            if (p.opacity > 0) {
+              ctx.shadowColor = "#e2e8f0"
+              ctx.shadowBlur = 8
+              ctx.globalAlpha = Math.max(0, p.opacity)
+              ctx.fillStyle = "#f1f5f9"
+              ctx.font = `bold ${p.size}px monospace`
+              ctx.fillText(p.value, p.x, p.y)
+              
+              // Occasionally change the digit
+              if (Math.random() < 0.03) {
+                p.value = String(Math.floor(Math.random() * 10))
+              }
+            }
+          }
+        }
         
-        // Change number occasionally
-        if (Math.random() < 0.1) {
-          p.value = String(Math.floor(Math.random() * 10))
+        // Remove when all particles are done
+        if (allDone || elapsed > 6000) {
+          meltingEntitiesRef.current.splice(i, 1)
         }
       }
       
@@ -740,11 +801,16 @@ export function AnimatedBackground() {
         }
       }
       
-      // Trigger explosion every 10 seconds
-      if (time - lastExplosionRef.current > 10000 && entities.length > 0) {
-        const randomEntity = entities[Math.floor(Math.random() * entities.length)]
-        createExplosion(randomEntity)
-        lastExplosionRef.current = time
+      // Trigger melt effect every 10 seconds
+      if (time - lastMeltRef.current > 10000 && entities.length > 0) {
+        const randomIndex = Math.floor(Math.random() * entities.length)
+        const randomEntity = entities[randomIndex]
+        createMeltEffect(randomEntity, time)
+        // Remove the entity that's melting
+        entities.splice(randomIndex, 1)
+        // Add a new one to replace it
+        entities.push(createEntity(canvas.width, canvas.height, true))
+        lastMeltRef.current = time
       }
 
       animationFrameRef.current = requestAnimationFrame(animate)
@@ -756,7 +822,7 @@ export function AnimatedBackground() {
       window.removeEventListener("resize", resizeCanvas)
       cancelAnimationFrame(animationFrameRef.current)
     }
-  }, [createEntity, createMatrixNumber, createExplosion, drawShark, drawStingray, drawGar, drawRegularFish, drawChessPiece])
+  }, [createEntity, createMatrixNumber, createMeltEffect, drawShark, drawStingray, drawGar, drawRegularFish, drawChessPiece])
 
   return (
     <canvas
